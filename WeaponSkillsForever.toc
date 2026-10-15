@@ -1,0 +1,13 @@
+## Interface: 16001
+## Title: Weapon Skills Forever
+## Notes: Track weapon skills and professions with on-screen progress bars for WoW Forever
+## Author: Dyre
+## Version: 0.1.0-beta
+## IconTexture: Interface\Icons\INV_Misc_Gear_01
+## Category: Quests & Leveling
+## SavedVariablesPerCharacter: WeaponSkillsForeverDB
+
+Commands.lua
+Skills.lua
+Core.lua
+UI.lua
