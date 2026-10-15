@@ -68,7 +68,8 @@ alerts, account-wide profiles, or other features without agreement.
 - README.md is the user-facing overview, TESTING.md the verification method and
   in-client checklist, docs/RELEASE_PLAN.md the release process,
   docs/CURSEFORGE_LISTING.md the CurseForge form text, and CHANGELOG.md the
-  per-release change list.
+  per-release change list. artwork/ holds the logo (SVG source and PNGs) for
+  project pages; it is never packaged.
 - Documentation describes purpose, design, rules, and methodology. Do not add
   dated status reports or test-result logs to the docs; CHANGELOG.md is the
   release record.
