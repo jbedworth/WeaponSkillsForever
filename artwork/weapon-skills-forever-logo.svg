@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="title description">
+  <title id="title">Weapon Skills Forever</title>
+  <desc id="description">An original gold sword standing before an open book, inside a gold progress ring, on a rich dark-brown field framed by a fine gold border.</desc>
+  <defs>
+    <radialGradient id="background" cx="50%" cy="42%" r="70%">
+      <stop offset="0" stop-color="#49301c"/>
+      <stop offset="0.6" stop-color="#2b190f"/>
+      <stop offset="1" stop-color="#170e09"/>
+    </radialGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f4d38b"/>
+      <stop offset="0.32" stop-color="#d5a956"/>
+      <stop offset="0.64" stop-color="#96703a"/>
+      <stop offset="1" stop-color="#e9bf6a"/>
+    </linearGradient>
+    <linearGradient id="blade" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#9a7035"/>
+      <stop offset="0.48" stop-color="#f5dc9c"/>
+      <stop offset="0.52" stop-color="#d9b364"/>
+      <stop offset="1" stop-color="#9a7035"/>
+    </linearGradient>
+    <linearGradient id="page" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f3dfa8"/>
+      <stop offset="1" stop-color="#c39a55"/>
+    </linearGradient>
+    <linearGradient id="cover" x1="0" y1="0" x2="0.9" y2="1">
+      <stop offset="0" stop-color="#573a21"/>
+      <stop offset="0.5" stop-color="#322014"/>
+      <stop offset="1" stop-color="#1d120c"/>
+    </linearGradient>
+    <filter id="shadow" x="-35%" y="-35%" width="170%" height="170%">
+      <feDropShadow dx="0" dy="14" stdDeviation="12" flood-color="#080502" flood-opacity="0.7"/>
+    </filter>
+    <g id="sword">
+      <path d="M0 -390 L28 -324 L24 88 L0 116 L-24 88 L-28 -324 Z" fill="url(#blade)" stroke="#21130a" stroke-width="9" stroke-linejoin="round"/>
+      <path d="M0 -350 L0 86" fill="none" stroke="#fff0b8" stroke-opacity="0.45" stroke-width="3"/>
+      <path d="M-74 83 Q-41 68 0 77 Q41 68 74 83 L82 112 Q41 96 0 101 Q-41 96 -82 112 Z" fill="url(#gold)" stroke="#21130a" stroke-width="7" stroke-linejoin="round"/>
+      <path d="M-16 103 L16 103 L19 214 L-19 214 Z" fill="#342013" stroke="#bf934a" stroke-width="6"/>
+      <path d="M-14 125 L14 133 M-15 148 L15 156 M-16 171 L16 179 M-17 194 L17 202" stroke="#b98b43" stroke-width="5"/>
+      <path d="M0 209 L27 232 L0 258 L-27 232 Z" fill="url(#gold)" stroke="#21130a" stroke-width="7" stroke-linejoin="round"/>
+    </g>
+  </defs>
+  <path d="M0 0H1024V1024H0Z" fill="url(#background)"/>
+  <rect x="46" y="46" width="932" height="932" rx="94" fill="none" stroke="url(#gold)" stroke-width="5"/>
+  <rect x="62" y="62" width="900" height="900" rx="80" fill="none" stroke="#b48b45" stroke-opacity="0.28" stroke-width="2"/>
+  <path d="M512 91 L525 108 L512 125 L499 108 Z M512 899 L525 916 L512 933 L499 916 Z" fill="url(#gold)"/>
+  <g filter="url(#shadow)">
+    <!-- Progress ring: a dark track, then a gold arc filled about four fifths of the way. -->
+    <circle cx="512" cy="480" r="320" fill="none" stroke="#120a05" stroke-width="44"/>
+    <circle cx="512" cy="480" r="320" fill="none" stroke="#b48b45" stroke-opacity="0.45" stroke-width="50" stroke-dasharray="2 9.17"/>
+    <circle cx="512" cy="480" r="320" fill="none" stroke="#120a05" stroke-width="38"/>
+    <circle cx="512" cy="480" r="320" fill="none" stroke="url(#gold)" stroke-width="30" stroke-linecap="round" stroke-dasharray="1600 2011" transform="rotate(-90 512 480)"/>
+    <circle cx="512" cy="480" r="342" fill="none" stroke="#f0ca78" stroke-opacity="0.35" stroke-width="2"/>
+    <circle cx="512" cy="480" r="298" fill="none" stroke="#f0ca78" stroke-opacity="0.35" stroke-width="2"/>
+    <!-- Open book. -->
+    <path d="M512 618 Q420 584 316 604 L300 738 Q412 718 512 758 Q612 718 724 738 L708 604 Q604 584 512 618 Z" fill="url(#cover)" stroke="#f0ca78" stroke-opacity="0.7" stroke-width="5" stroke-linejoin="round"/>
+    <path d="M512 610 Q426 574 334 590 L322 714 Q424 700 512 740 Z" fill="url(#page)" stroke="#21130a" stroke-width="7" stroke-linejoin="round"/>
+    <path d="M512 610 Q598 574 690 590 L702 714 Q600 700 512 740 Z" fill="url(#page)" stroke="#21130a" stroke-width="7" stroke-linejoin="round"/>
+    <path d="M362 626 Q412 616 470 634 M358 656 Q410 646 470 664 M354 686 Q408 676 470 694 M662 626 Q612 616 554 634 M666 656 Q614 646 554 664 M670 686 Q616 676 554 694" fill="none" stroke="#6b4a26" stroke-opacity="0.55" stroke-width="5" stroke-linecap="round"/>
+    <use href="#sword" transform="translate(512 470) scale(0.8)"/>
+  </g>
+  <path d="M359 850H457 M567 850H665" fill="none" stroke="#b98e47" stroke-opacity="0.5" stroke-width="3" stroke-linecap="round"/>
+  <path d="M512 837 L524 850 L512 863 L500 850 Z" fill="url(#gold)"/>
+</svg>
