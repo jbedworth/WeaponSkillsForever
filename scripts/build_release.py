@@ -266,7 +266,7 @@ def _release_notes(version, changes):
 
 ## Notes
 
-- Beta for WoW: Forever. Tested on Forever beta {GAME_VERSION}, build {TARGET_BUILD},
+- For WoW: Forever. Tested on Forever beta {GAME_VERSION}, build {TARGET_BUILD},
   Interface {INTERFACE}. WSK runs on later beta builds while the client provides
   the skill APIs it needs, and disables itself with one chat message if they
   are missing.

@@ -4,6 +4,12 @@ Player-facing changes for each Weapon Skills Forever release, newest first. The
 release builder copies the section for the TOC version into the GitHub release
 notes and the CurseForge changelog, and fails if that section is missing.
 
+## 1.0.0
+
+The first full release for WoW: Forever, no longer marked beta: it was play tested on the Forever beta client 1.60.1, build 70450. CurseForge now offers it as a release, so the app updates it and installs what it needs for every player.
+
+- The CurseForge app installs Dyre's Toolkit with WSK.
+
 ## 0.1.1-beta
 
 - Fixed a Lua error ("attempt to compare field 'modifier' (a secret number value)") when the game hides skill values, for example in combat. The box keeps the last values it saw, and never stops tracking a skill because its values are hidden.

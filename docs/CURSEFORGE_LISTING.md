@@ -50,7 +50,7 @@ The CurseForge app installs Dyre's Toolkit with it: one layout mode (`/dyre unlo
 - `/wsk lock`, `/wsk unlock`, and `/wsk reset` control the box position (with Dyre's Toolkit, lock and unlock apply to every Dyre's AddOn).
 
 ### Compatibility
-Beta: tested on the Forever beta client 1.60.1, build 70450. WSK keeps working on later beta builds; if a client update removes the skill API it needs, it disables itself with one chat message.
+Tested on the Forever beta client 1.60.1, build 70450. WSK keeps working on later beta builds; if a client update removes the skill API it needs, it disables itself with one chat message.
 
 WowUp users (2.24.0 or later): install from the repository URL; GitHub releases carry the Forever metadata WowUp needs.
 
