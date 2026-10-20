@@ -17,6 +17,7 @@ tested.
 | License | MIT License |
 | Source | https://github.com/jbedworth/WeaponSkillsForever |
 | Issues | https://github.com/jbedworth/WeaponSkillsForever/issues |
+| Donation | Ko-fi, https://ko-fi.com/dyre_janelle (the project's Donation field) |
 
 ## Summary
 

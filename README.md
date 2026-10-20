@@ -136,6 +136,10 @@ From the Git Bash repository root:
 `.tools/` is ignored and holds portable Lua 5.1, Python 3.13.7, and actionlint
 for Windows. CI uses native tools on `ubuntu-24.04`.
 
+## Support
+
+Dyre's AddOns are free. If you enjoy them, you can support them on Ko-fi: https://ko-fi.com/dyre_janelle
+
 ## License
 
 Code uses the [MIT License](LICENSE). Copyright (c) 2026 John Bedworth.
