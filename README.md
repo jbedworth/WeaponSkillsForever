@@ -14,7 +14,7 @@ you play, and colors each bar by how close it is to the cap.
 
 ## Compatibility
 
-WSK is tested on the Forever beta, `1.60.1` build `70338`, Interface `16001`,
+WSK is tested on the Forever beta, `1.60.1` build `70450`, Interface `16001`,
 Lua `5.1`. It does not check the client version or build, because beta builds
 change several times a week. It checks at login for the skill API it needs
 (`C_SkillInfo`) and disables itself with one message if it is missing.
@@ -27,7 +27,8 @@ change several times a week. It checks at login for the skill API it needs
   - **Red:** more than 5 ranks below the cap.
   - **Yellow:** within 5 ranks of the cap.
   - **Green:** at the cap.
-- **Drag** the box to move it. The position is saved per character.
+- **Drag** the box to move it. The position is saved per character. With
+  Dyre's Toolkit, type `/dyre unlock` (or `/wsk unlock`) first; see below.
 - **The view toggle** (the sword or book icon beside the gear) switches the box
   between weapon skills and other skills, such as professions. Each view lists
   its skills in the Skills tab's order. Weapon skills are everything in the
@@ -41,12 +42,37 @@ change several times a week. It checks at login for the skill API it needs
 - Bonuses, such as racial weapon bonuses, are shown but do not count toward the
   cap, matching Blizzard's Skills tab: a bar turns green when your base rank can
   rise no further.
-- **Options → AddOns → Weapon Skills Forever** (or `/wsk options`) has the same
-  controls in the game's settings: show or hide the box, lock it, reset its
-  position, choose tracked skills, and set the **opacity** of the box
+- When the game hides skill values (for example in combat), the box keeps the
+  last values it saw and updates when the game shows them again.
+- **Options → AddOns → Weapon Skills Forever** (with Dyre's Toolkit, under
+  **Dyre's AddOns**; or `/wsk options`) has the same
+  controls in the game's settings: show or hide the box, lock it (without
+  Dyre's Toolkit), reset its position, choose tracked skills, and set the **opacity** of the box
   background (default 50%) and of the skill rows (default 90%). Layout
   (horizontal) and theme options are shown there as previews and are not yet
   available.
+
+### With Dyre's Toolkit
+
+Dyre's Toolkit, from CurseForge, is optional; the CurseForge app installs it
+with WSK. It gives all Dyre's AddOns one layout mode and one settings home:
+
+- `/dyre unlock` unlocks the skill box together with the frames of every other
+  Dyre's AddOn. Drop the box near another Dyre's frame and it snaps beside it;
+  with **Snap to the grid** on (in the toolkit's settings), a box that snaps
+  to no frame puts its center on the nearest grid point. Shift-drag moves a
+  snapped group. `/dyre lock` locks them all again. Frames move only out of
+  combat.
+- `/wsk lock` and `/wsk unlock` do the same, for every Dyre's AddOn. The
+  toolkit's **Unlock frames** switch and its minimap button do it too, so WSK's
+  settings page and setup panel have no lock checkbox. Frames always start
+  locked at login.
+- The settings page sits under **Options → AddOns → Dyre's AddOns**. It opens
+  only out of combat.
+
+Without the toolkit, WSK works as before, with its own lock (a checkbox on
+its settings page and in the setup panel, and `/wsk lock`) and its own
+top-level settings page, and says once at login where to get the toolkit.
 
 ### Commands
 
@@ -56,7 +82,7 @@ change several times a week. It checks at login for the skill API it needs
 | `/wsk config` | Open or close the setup panel |
 | `/wsk options` | Open the AddOn settings page |
 | `/wsk show`, `/wsk hide` | Show or hide the skill box |
-| `/wsk lock`, `/wsk unlock` | Stop or allow dragging the box |
+| `/wsk lock`, `/wsk unlock` | Stop or allow dragging the box (with Dyre's Toolkit, the frames of every Dyre's AddOn) |
 | `/wsk reset` | Move the box back to its default position |
 | `/wsk debug_skills` | Print what the client reports about your skill lines |
 
@@ -74,6 +100,9 @@ WeaponSkillsForever/
     LICENSE
 ```
 
+Dyre's Toolkit is optional (`## OptionalDeps: DyresToolkit`); with it, the
+in-game AddOn list shows WSK under Dyre's Toolkit.
+
 The TOC loads Commands, Skills, Core, then UI, and saves settings per character
 in `WeaponSkillsForeverDB`. WSK ships no texture files; it uses built-in client
 textures only.
@@ -84,7 +113,7 @@ textures only.
 | --- | --- |
 | `Commands.lua` | `/wsk` command parsing and dispatch. |
 | `Skills.lua` | Capability checks, trackable-skill rules, and cap status. |
-| `Core.lua` | Events, saved settings, tracking limits, login banner, and diagnostics. |
+| `Core.lua` | Events, saved settings, tracking limits, login banner, diagnostics, and joining Dyre's Toolkit. |
 | `UI.lua` | The skill box and the setup panel. |
 | `tests/run.lua` | Isolated Lua 5.1 tests with WoW API mocks. |
 | `scripts/` | Standard-library Python release builder, provenance verifier, CurseForge uploader, and version lookup. |

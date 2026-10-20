@@ -235,7 +235,8 @@ Do not use a blind workflow rerun as a recovery procedure. See
       Do not substitute Retail, Classic, a nearby version, or an untested build.
 - [ ] Add a project logo, the repository link, and the issue-tracker link.
 - [ ] Choose the CurseForge main category and use the same text for the TOC
-      `## Category`; the in-game AddOn list groups by that exact text.
+      `## Category`; the in-game AddOn list groups by that exact text when
+      Dyre's Toolkit is missing (`## Group: DyresToolkit` nests WSK under it).
 - [ ] Capture the skill box and the setup panel. Crop unrelated chat and player
       information.
 - [ ] Set a GitHub social-preview image. WoWUp's Hub guide uses that image, with

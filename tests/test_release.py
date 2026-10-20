@@ -83,14 +83,14 @@ class ReleaseTests(unittest.TestCase):
         self.assertEqual(manifest["tag"], "v" + self.version)
         self.assertEqual(manifest["interface"], 16001)
         self.assertEqual(manifest["game_version"], "1.60.1")
-        self.assertEqual(manifest["target_build"], 70338)
+        self.assertEqual(manifest["target_build"], 70450)
         self.assertEqual(manifest["sha256"], hashlib.sha256(path.read_bytes()).hexdigest())
         self.assertEqual((self.output / (path.name + ".sha256")).read_text(),
                          f"{manifest['sha256']}  {path.name}\n")
         checked = builder.validate_archive(path, self.version)
         self.assertEqual(checked, dict(manifest, tag=""))
         notes = " ".join((self.output / "release-notes.md").read_text().split())
-        for text in ("Forever beta 1.60.1", "70338", "skill APIs", "six weapon skills and six other skills",
+        for text in ("Forever beta 1.60.1", "70450", "skill APIs", "six weapon skills and six other skills",
                      "`/wsk config`", "base skill rank", "do not count toward the cap"):
             self.assertIn(text, notes)
         with zipfile.ZipFile(path) as archive:

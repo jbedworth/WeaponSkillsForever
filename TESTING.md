@@ -8,8 +8,8 @@ the automated test method, and the in-client checklist.
 
 1. **Pinned source review.** Client behavior is read from Blizzard's FrameXML
    and generated API documentation at Gethe/wow-ui-source commit
-   `943764493e6b16d63ded3ab304150d1f05e58b57` (`1.60.1.70338`). Source
-   establishes declared APIs, templates, and code paths, not operational behavior.
+   `943764493e6b16d63ded3ab304150d1f05e58b57` (`1.60.1.70338`; the client
+   was tested on build 70450). Source establishes declared APIs, templates, and code paths, not operational behavior.
 2. **Automated mock tests.** `tests/run.lua` exercises commands, skill rules,
    saved settings, tracking limits, and the box and setup panel against minimal
    WoW API mocks under Lua 5.1. Python unit tests cover the release helpers.
@@ -32,6 +32,13 @@ the automated test method, and the in-client checklist.
   takes its bonus from `UnitDefenseSkill`.
 - Status compares the base rank with `maxRank`: `capped` at or above the cap,
   `near` within `NEAR_CAP_RANKS` (5), otherwise `low`. Bonuses never count.
+- Secret values: every skill line passes through `ReadSkillLine`, which
+  replaces each secret field with the last plain value seen this session
+  (by skill ID), or marks the line unknown. `GetNumSkillLines` counts as 0
+  while secret, and Defense's `UnitDefenseSkill` bonus keeps its last plain
+  value. Unknown lines are never trackable and never pruned; the box keeps
+  its rows, and a view whose tracked skills were never seen plain says the
+  game hides the values. `/wsk debug_skills` prints `<secret>`.
 - `Core.lua` repairs `WeaponSkillsForeverDB` on load: tracked IDs are whole,
   positive, unique, and at most twice `MAX_TRACKED`, because skill types are
   unknown before skill data arrives; `SetTracked` enforces `MAX_TRACKED` (6)
@@ -46,6 +53,16 @@ the automated test method, and the in-client checklist.
   exists: show and lock checkboxes, reset position, the shared skill selector,
   and disabled Layout and Theme placeholders that store nothing. Without the
   API, WSK runs without the page and `/wsk options` says so.
+- With Dyre's Toolkit (`DyresToolkit.RequireContract(1)` at `PLAYER_LOGIN`),
+  the box starts with the toolkit's lock, registers with `RegisterMovable`,
+  and drags only through `BeginDrag`/`EndDrag`; `/wsk lock`, `/wsk unlock`,
+  call the toolkit, which locks every Dyre's AddOn; the settings page and gear
+  panel have no lock checkbox (the toolkit's switch replaces it), and the
+  reset button and pager move up into its place;
+  the settings page is a canvas subcategory of the toolkit's "Dyre's AddOns"
+  category. Without the toolkit, or with one lacking contract 1, WSK keeps its
+  own drag, lock, and top-level page and prints one install line naming
+  CurseForge. The mock suite covers both paths with a mock toolkit.
 - Each bar uses a plain color texture created in code; the box uses the
   built-in tooltip background and rounded border, tinted brown at the saved
   background opacity (default 50%)
@@ -68,7 +85,8 @@ the automated test method, and the in-client checklist.
 - `Blizzard_SharedXML/Shared/Button/CheckButtonTemplates.xml` defines
   `UICheckButtonTemplate`.
 - `Blizzard_Settings_Shared/Blizzard_Settings.lua` defines
-  `Settings.RegisterCanvasLayoutCategory`, `RegisterAddOnCategory`, and
+  `Settings.RegisterCanvasLayoutCategory`, `RegisterCanvasLayoutSubcategory`
+  (parent category, frame, name), `RegisterAddOnCategory`, and
   `OpenToCategory`; `Blizzard_ImplementationReadme.lua` documents canvas
   categories and the optional `OnRefresh` frame method.
 - `Blizzard_SharedXML/Shared/Slider/MinimalSlider.xml` defines
@@ -119,6 +137,14 @@ From the Git Bash repository root:
 Mocks follow the client's quirks learned on Weapon Sets Forever: APIs that
 return no value must return no value in mocks, not an explicit nil.
 
+The mock's secret values (`state.secret`, `secretCount`, `secretDefense`)
+report their real type through `type()`, as in client, and raise an error on
+any compare, arithmetic, concatenation, length, index, or `tostring`. A
+boolean test on a secret cannot be made to fail in Lua 5.1, so mocks do not
+prove that rule; code checks `IsSecret` before every use instead. Run against
+0.1.0-beta, the secret-modifier test fails at `BarText`, as John's
+BugGrabber report from the client did.
+
 ## In-client checklist
 
 - [ ] Login prints `WSK: Weapon Skills Forever <version> by Dyre` and the ready hint.
@@ -151,3 +177,38 @@ return no value must return no value in mocks, not an explicit nil.
       show and lock checkboxes, reset button, and skill selector work and stay in
       step with the box and gear panel; Layout and Theme show disabled.
 - [ ] No Lua errors or taint warnings in or out of combat.
+
+- [ ] Track Swords (or a skill with a racial bonus) and Defense, and fight:
+      BugGrabber shows no `UI.lua` "secret number value" error, and the bars
+      keep their values and bonus during and after combat. Skill-ups in combat
+      show after combat at the latest.
+- [ ] `/wsk debug_skills` in combat prints no Lua error (secret fields print
+      as `<secret>`).
+
+### With Dyre's Toolkit
+
+- [ ] Login prints the banner and ready hint, and no install line. The AddOn
+      list shows Weapon Skills Forever under Dyre's Toolkit.
+- [ ] Options > AddOns > Dyre's AddOns lists Weapon Skills Forever, with no
+      second top-level entry; `/wsk options` opens it, and in combat says
+      that the settings open out of combat.
+- [ ] At login the box is locked and does not drag. `/dyre unlock` unlocks it
+      with the frames of every other Dyre's AddOn.
+- [ ] Drop the box near another Dyre's frame: it snaps beside it, 20 apart.
+      Shift-drag moves the snapped group.
+- [ ] With "Snap to the grid" on, a box dropped away from other frames puts
+      its center on the nearest grid point; with it off, it stays where
+      dropped. The position survives `/reload`.
+- [ ] `/wsk lock` and `/wsk unlock` lock and unlock every Dyre's AddOn, with
+      one `Dyre:` line and no `WSK:` line.
+- [ ] WSK's settings page and the gear panel (`/wsk config`) show no lock
+      checkbox; "Reset position" sits right under "Show the skill box", and
+      the gear panel has no empty row above its pager.
+- [ ] `/wsk reset` still moves the box to its default position.
+
+### Without Dyre's Toolkit
+
+- [ ] With the toolkit disabled, login adds one line naming CurseForge as the
+      place to install Dyre's Toolkit; the box drags with `/wsk unlock`, the
+      settings page is top-level under Options > AddOns, and it and the gear
+      panel show the "Lock the skill box position" checkbox.

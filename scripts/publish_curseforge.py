@@ -27,6 +27,9 @@ FOREVER_TYPE_ID = 88568
 TIMEOUT = 30
 MAX_RESPONSE_BYTES = 2 * 1024 * 1024
 RECEIPT_NAME = "curseforge-upload.json"
+# Dyre's Toolkit: one layout mode and settings home for every Dyre's AddOn;
+# the CurseForge app installs it with this AddOn.
+RELATIONS = {"projects": [{"slug": "dyres-toolkit", "type": "requiredDependency"}]}
 
 
 class PublishError(Exception):
@@ -108,8 +111,8 @@ def load_artifact(artifact_dir, tag):
         if type(supplied) is not type(value) or supplied != value:
             raise PublishError(f"Release manifest {key} mismatch")
     if (verified["interface"] != 16001 or verified["game_version"] != "1.60.1"
-            or verified["target_build"] != 70338):
-        raise PublishError("Only Forever beta 1.60.1 / Interface 16001 / build 70338 is supported")
+            or verified["target_build"] != 70450):
+        raise PublishError("Only Forever beta 1.60.1 / Interface 16001 / build 70450 is supported")
     # Upload the held bytes, not a later read of a possibly replaced artifact.
     digest = hashlib.sha256(archive_bytes).hexdigest()
     if digest != verified["sha256"]:
@@ -218,7 +221,7 @@ def publish(artifact_dir, project_id, game_version_id, tag):
     versions = request_json(opener, urllib.request.Request(VERSIONS_URL, headers=headers))
     verify_server_version(versions, game_version_id)
     metadata = {"gameVersions": [game_version_id], "releaseType": manifest["channel"],
-                "changelog": changelog, "changelogType": "markdown"}
+                "changelog": changelog, "changelogType": "markdown", "relations": RELATIONS}
     body, content_type = multipart(metadata, manifest["archive_name"], archive_bytes)
     upload_headers = dict(headers, **{"Content-Type": content_type})
     request = urllib.request.Request(UPLOAD_URL.format(project_id=project_id),

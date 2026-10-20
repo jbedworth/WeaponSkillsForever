@@ -10,7 +10,8 @@ tested.
 | --- | --- |
 | Name | Weapon Skills Forever |
 | Class | Addons |
-| Main category | Quests & Leveling. Keep it identical to the TOC `## Category`, which groups the AddOn in the in-game AddOn list. |
+| Main category | Quests & Leveling. Keep it identical to the TOC `## Category`, which groups the AddOn in the in-game AddOn list when Dyre's Toolkit is missing (with it, `## Group: DyresToolkit` nests WSK under the toolkit). |
+| Relations | Dyre's Toolkit (slug `dyres-toolkit`), required dependency. CI uploads set it; add it by hand on any file uploaded through the website. |
 | Additional categories | Professions, Warrior, Rogue, Hunter (CurseForge allows up to 4; unrelated ones can send the project back for changes). |
 | Author shown | Dyre, set through the CurseForge account's username |
 | License | MIT License |
@@ -40,13 +41,16 @@ Per-file changelogs need no manual text: each CI upload uses the version's
 - Drag the box anywhere and adjust its opacity; its position and your choices are saved per character.
 - Bonuses such as racial weapon bonuses are shown in green but do not count toward the cap, matching the Skills tab.
 
+### Dyre's Toolkit
+The CurseForge app installs Dyre's Toolkit with it: one layout mode (`/dyre unlock`) that snaps the box to other Dyre's AddOns' frames and to a grid, a minimap menu, and one settings home for all Dyre's AddOns. WSK still works without it.
+
 ### Commands
 - `/wsk` shows or hides the box. `/wsk config` opens the setup panel.
 - `/wsk options` opens the AddOn settings page (Options > AddOns), which has the same controls.
-- `/wsk lock`, `/wsk unlock`, and `/wsk reset` control the box position.
+- `/wsk lock`, `/wsk unlock`, and `/wsk reset` control the box position (with Dyre's Toolkit, lock and unlock apply to every Dyre's AddOn).
 
 ### Compatibility
-Beta: tested on the Forever beta client 1.60.1, build 70338. WSK keeps working on later beta builds; if a client update removes the skill API it needs, it disables itself with one chat message.
+Beta: tested on the Forever beta client 1.60.1, build 70450. WSK keeps working on later beta builds; if a client update removes the skill API it needs, it disables itself with one chat message.
 
 WowUp users (2.24.0 or later): install from the repository URL; GitHub releases carry the Forever metadata WowUp needs.
 

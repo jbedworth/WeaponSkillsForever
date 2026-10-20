@@ -32,44 +32,125 @@ function WSK.CheckCapabilities()
     return true
 end
 
+-- Secret values (the client's Midnight restrictions, seen in client on a
+-- skill's modifier): never compare, do arithmetic on, concatenate, or print one.
+function WSK.IsSecret(value)
+    return type(issecretvalue) == "function" and issecretvalue(value) == true
+end
+
+-- For chat: a secret value is never printed.
+function WSK.Describe(value)
+    if WSK.IsSecret(value) then
+        return "<secret>"
+    end
+    return tostring(value)
+end
+
+local LINE_FIELDS = {"skillID", "name", "isHeader", "isCollapsed", "rank", "maxRank", "modifier",
+    "skillLineCategoryID", "parentSkillLineID"}
+-- Each line's last plain values by skill ID, for the session: a secret field
+-- takes its last known value, so the box keeps showing it.
+local lastKnown = {}
+local lastDefenseModifier
+
+-- The number of skill lines, or 0 while the count is secret.
+function WSK.CountSkillLines()
+    local count = C_SkillInfo.GetNumSkillLines()
+    if WSK.IsSecret(count) or type(count) ~= "number" then
+        return 0
+    end
+    return count
+end
+
+-- A plain copy of a skill line: no secret values. line.unknown is set when a
+-- secret field has no last known value; such a line is never trackable, but
+-- is not proof that the skill is unlearned.
+local function ReadLine(info, requestedID)
+    if type(info) ~= "table" then
+        return nil
+    end
+    local line, secret = {}, {}
+    for _, field in ipairs(LINE_FIELDS) do
+        local value = info[field]
+        if WSK.IsSecret(value) then
+            secret[#secret + 1] = field
+        else
+            line[field] = value
+        end
+    end
+    local id = type(line.skillID) == "number" and line.skillID or requestedID
+    local known = id and lastKnown[id]
+    for _, field in ipairs(secret) do
+        if known and known[field] ~= nil then
+            line[field] = known[field]
+        else
+            line.unknown = true
+        end
+    end
+    if id and not line.unknown then
+        local copy = {}
+        for _, field in ipairs(LINE_FIELDS) do
+            copy[field] = line[field]
+        end
+        lastKnown[id] = copy
+    end
+    return line
+end
+
+function WSK.ReadSkillLine(index)
+    return ReadLine(C_SkillInfo.GetSkillLineInfo(index))
+end
+
 -- Ranked skills only: single-rank lines (armor proficiencies, some languages)
 -- have nothing to track. Child lines (parentSkillLineID ~= 0) repeat their
 -- parent's name and rank; Blizzard's Skills panel lists only top-level lines.
-local function IsTrackable(info)
-    return type(info) == "table" and not info.isHeader
-        and (info.parentSkillLineID or 0) == 0
-        and not HIDDEN_CATEGORIES[info.skillLineCategoryID]
-        and type(info.skillID) == "number" and type(info.name) == "string"
-        and type(info.rank) == "number" and type(info.maxRank) == "number"
-        and info.maxRank > 1
+local function IsTrackable(line)
+    return type(line) == "table" and not line.unknown and not line.isHeader
+        and (line.parentSkillLineID or 0) == 0
+        and not HIDDEN_CATEGORIES[line.skillLineCategoryID]
+        and type(line.skillID) == "number" and type(line.name) == "string"
+        and type(line.rank) == "number" and type(line.maxRank) == "number"
+        and line.maxRank > 1
 end
 
-local function Describe(info)
-    local modifier = type(info.modifier) == "number" and info.modifier or 0
-    if info.skillID == DEFENSE_SKILL_ID and type(UnitDefenseSkill) == "function" then
+local function Describe(line)
+    local modifier = type(line.modifier) == "number" and line.modifier or 0
+    if line.skillID == DEFENSE_SKILL_ID and type(UnitDefenseSkill) == "function" then
         local _, defenseModifier = UnitDefenseSkill("player")
+        if WSK.IsSecret(defenseModifier) then
+            defenseModifier = lastDefenseModifier
+        elseif type(defenseModifier) == "number" then
+            lastDefenseModifier = defenseModifier
+        end
         if type(defenseModifier) == "number" then
             modifier = defenseModifier
         end
     end
-    return {id = info.skillID, name = info.name, rank = info.rank,
-        modifier = modifier, maxRank = info.maxRank, categoryID = info.skillLineCategoryID}
+    return {id = line.skillID, name = line.name, rank = line.rank,
+        modifier = modifier, maxRank = line.maxRank, categoryID = line.skillLineCategoryID}
 end
 
 -- Returns {id, name, rank, modifier, maxRank} for a learned, ranked skill, or nil.
 function WSK.GetSkill(id)
-    local info = C_SkillInfo.GetSkillLineInfoByID(id)
-    if not IsTrackable(info) then
+    local line = ReadLine(C_SkillInfo.GetSkillLineInfoByID(id), id)
+    if not IsTrackable(line) then
         return nil
     end
-    return Describe(info)
+    return Describe(line)
+end
+
+-- True only when the client says the character lacks the skill: a line with
+-- secret values and no last known ones is kept.
+function WSK.IsUnlearned(id)
+    local line = ReadLine(C_SkillInfo.GetSkillLineInfoByID(id), id)
+    return line == nil or (not line.unknown and not IsTrackable(line))
 end
 
 -- Learned ranked skills in client order, each with the header ("group") above it.
 function WSK.ListTrackableSkills()
     local skills, group = {}, nil
-    for index = 1, C_SkillInfo.GetNumSkillLines() do
-        local info = C_SkillInfo.GetSkillLineInfo(index)
+    for index = 1, WSK.CountSkillLines() do
+        local info = WSK.ReadSkillLine(index)
         if type(info) == "table" and info.isHeader then
             group = info.name
         elseif IsTrackable(info) then
@@ -91,18 +172,22 @@ end
 local groupOffsets = {}
 -- Fraction of a line per remembered position; a group never has this many lines.
 local OFFSET_SCALE = 1000
+-- Each tracked skill's last order, for the session.
+local lastOrder = {}
 
 -- Returns the learned skills among ids in Skills tab order. A skill hidden
 -- under a collapsed header takes its header's place, keeping its remembered
 -- position in the group; one never seen expanded sorts by name after those.
 function WSK.OrderSkills(ids)
     local position, headerPosition, header = {}, {}, nil
-    for index = 1, C_SkillInfo.GetNumSkillLines() do
-        local info = C_SkillInfo.GetSkillLineInfo(index)
-        if type(info) == "table" and info.isHeader then
+    for index = 1, WSK.CountSkillLines() do
+        local info = WSK.ReadSkillLine(index)
+        if type(info) ~= "table" or type(info.skillID) ~= "number" then
+            -- Nothing to place: no line, or its ID is secret and not yet known.
+        elseif info.isHeader then
             headerPosition[info.skillID] = index
             header = index
-        elseif type(info) == "table" then
+        else
             position[info.skillID] = index
             if header then
                 groupOffsets[info.skillID] = index - header
@@ -119,8 +204,10 @@ function WSK.OrderSkills(ids)
             elseif headerIndex then
                 skill.order = headerIndex + (groupOffsets[id] or OFFSET_SCALE - 1) / OFFSET_SCALE
             else
-                skill.order = math.huge
+                -- No line or header found (secret IDs): the last order seen.
+                skill.order = lastOrder[id] or math.huge
             end
+            lastOrder[id] = skill.order
             skills[#skills + 1] = skill
         end
     end
@@ -150,8 +237,8 @@ function WSK.ListSetupEntries()
             entries[#entries + 1] = {kind = "skill", skill = skill}
         end
     end
-    for index = 1, C_SkillInfo.GetNumSkillLines() do
-        local info = C_SkillInfo.GetSkillLineInfo(index)
+    for index = 1, WSK.CountSkillLines() do
+        local info = WSK.ReadSkillLine(index)
         if type(info) == "table" and info.isHeader then
             addGroup()
             group = nil

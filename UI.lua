@@ -4,6 +4,9 @@ local TRACKER_NAME = "WeaponSkillsForeverTracker"
 local CONFIG_NAME = "WeaponSkillsForeverConfig"
 local SETTINGS_NAME = "WeaponSkillsForeverSettings"
 local TITLE = "Weapon Skills Forever"
+local LOCK_LABEL = "Lock the skill box position"
+-- The gear panel's lock checkbox row, between the list and the pager.
+local LOCK_ROW_HEIGHT = 28
 local TRACKER_WIDTH = 220
 local CONFIG_WIDTH = 300
 local PAD = 10
@@ -42,6 +45,7 @@ local EMPTY_TEXT = {
     weapons = "No weapon skills tracked. Click the gear to choose some.",
     other = "No other skills tracked. Click the gear to choose some.",
 }
+local HIDDEN_TEXT = "The game hides skill values right now. They show again when it allows."
 local HIGHLIGHT = "Interface\\Buttons\\ButtonHilight-Square"
 local BUTTON_TEMPLATE = "SharedButtonSmallTemplate"
 local GOLD = {1, 0.82, 0}
@@ -166,7 +170,9 @@ local function RefreshTracker()
     ApplyOpacity()
     local view = WSK.GetView()
     local shown = 0
-    for _, skill in ipairs(WSK.OrderSkills(WSK.GetTracked())) do
+    local tracked = WSK.GetTracked()
+    local skills = WSK.OrderSkills(tracked)
+    for _, skill in ipairs(skills) do
         if WSK.SkillType(skill) == view then
             shown = shown + 1
             local row = rows[shown] or CreateRow(shown)
@@ -185,7 +191,17 @@ local function RefreshTracker()
     end
     tracker.view:SetNormalTexture(VIEW_ICONS[view])
     if shown == 0 then
-        tracker.empty:SetText(EMPTY_TEXT[view])
+        -- Tracked skills the client hides (secret values, none seen plain
+        -- this session) are kept, and the hint says so.
+        local hidden = false
+        if #skills < #tracked then
+            for _, id in ipairs(tracked) do
+                if not WSK.GetSkill(id) and not WSK.IsUnlearned(id) then
+                    hidden = true
+                end
+            end
+        end
+        tracker.empty:SetText(hidden and HIDDEN_TEXT or EMPTY_TEXT[view])
         tracker.empty:Show()
         tracker:SetHeight(TRACKER_HEADER_HEIGHT + 2 * PAD + 14)
     else
@@ -202,12 +218,24 @@ local function CreateTracker()
     tracker:SetMovable(true)
     tracker:EnableMouse(true)
     tracker:RegisterForDrag("LeftButton")
+    -- With Dyre's Toolkit, the toolkit drags, snaps (to other Dyre's frames
+    -- and the grid), and saves the box; without it, the box moves on its own.
+    local toolkit = WSK.toolkit
+    if toolkit then
+        toolkit.RegisterMovable(tracker, function(position) WSK.db.position = position end)
+    end
     tracker:SetScript("OnDragStart", function(self)
-        if not WSK.db.locked then
+        if toolkit then
+            toolkit.BeginDrag(self)
+        elseif not WSK.db.locked then
             self:StartMoving()
         end
     end)
     tracker:SetScript("OnDragStop", function(self)
+        if toolkit then
+            toolkit.EndDrag(self)
+            return
+        end
         self:StopMovingOrSizing()
         SavePosition()
     end)
@@ -421,7 +449,10 @@ end
 
 local function CreateConfig()
     local listTop = -(HEADER_HEIGHT + 22)
-    local pagerTop = listTop - LIST_ROWS * LIST_ROW_HEIGHT - 34
+    -- With Dyre's Toolkit, the toolkit's own switch locks every Dyre's
+    -- AddOn, so the panel has no lock checkbox and no row for it.
+    local lockRow = WSK.toolkit and 0 or LOCK_ROW_HEIGHT
+    local pagerTop = listTop - LIST_ROWS * LIST_ROW_HEIGHT - 6 - lockRow
     config = CreateFrame("Frame", CONFIG_NAME, UIParent, "BackdropTemplate")
     config:SetSize(CONFIG_WIDTH, -pagerTop + 22 + PAD)
     config:SetPoint("CENTER")
@@ -446,20 +477,23 @@ local function CreateConfig()
     config.previous = config.selector.previous
     config.next = config.selector.next
 
-    config.lock = CreateFrame("CheckButton", nil, config, "UICheckButtonTemplate")
-    config.lock:SetSize(22, 22)
-    config.lock:SetPoint("TOPLEFT", PAD, pagerTop + 28)
-    config.lock:SetScript("OnClick", function(self)
-        WSK.db.locked = self:GetChecked() and true or false
-        WSK.RefreshUI()
-    end)
-    local lockLabel = config:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    lockLabel:SetPoint("LEFT", config.lock, "RIGHT", 4, 0)
-    lockLabel:SetText("Lock the skill box position")
+    if not WSK.toolkit then
+        config.lock = CreateFrame("CheckButton", nil, config, "UICheckButtonTemplate")
+        config.lock:SetSize(22, 22)
+        config.lock:SetPoint("TOPLEFT", PAD, pagerTop + LOCK_ROW_HEIGHT)
+        config.lock:SetScript("OnClick", function(self)
+            WSK.SetLocked(self:GetChecked() and true or false)
+        end)
+        local lockLabel = config:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        lockLabel:SetPoint("LEFT", config.lock, "RIGHT", 4, 0)
+        lockLabel:SetText(LOCK_LABEL)
+    end
 
     config:SetScript("OnShow", function()
         config.selector.page = 1
-        config.lock:SetChecked(WSK.db.locked)
+        if config.lock then
+            config.lock:SetChecked(WSK.db.locked)
+        end
         RebuildSelector(config.selector)
     end)
     config:SetScript("OnHide", function()
@@ -537,7 +571,9 @@ local function RefreshSettings()
         return
     end
     settings.shown:SetChecked(WSK.db.shown)
-    settings.locked:SetChecked(WSK.db.locked)
+    if settings.locked then
+        settings.locked:SetChecked(WSK.db.locked)
+    end
     UpdateOpacitySliders()
     RebuildSelector(settings.selector)
 end
@@ -562,15 +598,20 @@ local function CreateSettings()
             WSK.HideTracker(true)
         end
     end)
-    settings.locked = SettingsCheck(settings, left, -108, "Lock the skill box position")
-    settings.locked:SetScript("OnClick", function(self)
-        WSK.db.locked = self:GetChecked() and true or false
-        WSK.RefreshUI()
-    end)
+    -- With Dyre's Toolkit, its "Unlock frames" switch locks every Dyre's
+    -- AddOn, so this page has no lock checkbox and the reset button moves up.
+    local resetTop = -112
+    if not WSK.toolkit then
+        settings.locked = SettingsCheck(settings, left, -108, LOCK_LABEL)
+        settings.locked:SetScript("OnClick", function(self)
+            WSK.SetLocked(self:GetChecked() and true or false)
+        end)
+        resetTop = -140
+    end
     settings.reset = CreateFrame("Button", nil, settings, BUTTON_TEMPLATE)
     settings.reset:SetSize(140, 22)
     settings.reset:SetText("Reset position")
-    settings.reset:SetPoint("TOPLEFT", left + 4, -140)
+    settings.reset:SetPoint("TOPLEFT", left + 4, resetTop)
     settings.reset:SetScript("OnClick", function()
         WSK.ResetTrackerPosition()
     end)
@@ -615,8 +656,14 @@ local function CreateSettings()
     -- skills and the box position are kept.
     settings.OnDefault = WSK.ResetOpacity
     settings:SetScript("OnShow", RefreshSettings)
-    settingsCategory = Settings.RegisterCanvasLayoutCategory(settings, TITLE)
-    Settings.RegisterAddOnCategory(settingsCategory)
+    -- Under Dyre's Toolkit's "Dyre's AddOns" home when it is there.
+    local home = WSK.toolkit and WSK.toolkit.SettingsCategory()
+    if home and type(Settings.RegisterCanvasLayoutSubcategory) == "function" then
+        settingsCategory = Settings.RegisterCanvasLayoutSubcategory(home, settings, TITLE)
+    else
+        settingsCategory = Settings.RegisterCanvasLayoutCategory(settings, TITLE)
+        Settings.RegisterAddOnCategory(settingsCategory)
+    end
 end
 
 -- Namespace API used by Core and Commands -----------------------------------
@@ -636,12 +683,14 @@ function WSK.RefreshUI()
         return
     end
     RefreshTracker()
-    if config:IsShown() then
+    if config:IsShown() and config.lock then
         config.lock:SetChecked(WSK.db.locked)
     end
     if settings then
         settings.shown:SetChecked(WSK.db.shown)
-        settings.locked:SetChecked(WSK.db.locked)
+        if settings.locked then
+            settings.locked:SetChecked(WSK.db.locked)
+        end
         UpdateOpacitySliders()
     end
     for _, selector in ipairs(selectors) do
@@ -663,6 +712,11 @@ end
 function WSK.OpenSettings()
     if not settingsCategory or type(Settings.OpenToCategory) ~= "function" then
         WSK.Report("The AddOn settings page is unavailable on this client. Use /wsk config.")
+        return
+    end
+    if WSK.toolkit then
+        -- The toolkit opens nothing in combat, and says so.
+        WSK.toolkit.OpenSettings(settingsCategory)
         return
     end
     Settings.OpenToCategory(settingsCategory:GetID())
@@ -692,15 +746,37 @@ function WSK.ToggleTracker()
     end
 end
 
-function WSK.LockTracker()
-    WSK.db.locked = true
+-- The toolkit's lock callback: quiet, the toolkit says one line for all.
+function WSK.ApplyLocked(locked)
+    WSK.db.locked = locked == true
     WSK.RefreshUI()
+end
+
+-- From the settings and config checkboxes: with the toolkit, every Dyre's
+-- AddOn's frames lock or unlock together.
+function WSK.SetLocked(locked)
+    if WSK.toolkit then
+        WSK.toolkit.SetLocked(locked)
+        return
+    end
+    WSK.ApplyLocked(locked)
+end
+
+function WSK.LockTracker()
+    if WSK.toolkit then
+        WSK.toolkit.Lock()
+        return
+    end
+    WSK.ApplyLocked(true)
     WSK.Report("Skill box locked.")
 end
 
 function WSK.UnlockTracker()
-    WSK.db.locked = false
-    WSK.RefreshUI()
+    if WSK.toolkit then
+        WSK.toolkit.Unlock()
+        return
+    end
+    WSK.ApplyLocked(false)
     WSK.Report("Skill box unlocked. Drag it to move it.")
 end
 

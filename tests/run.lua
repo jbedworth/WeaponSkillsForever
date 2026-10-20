@@ -38,6 +38,25 @@ local function same(actual, expected, context)
     end
 end
 
+-- A secret value: any compare, arithmetic, concatenation, length, or
+-- tostring is an error, as using one is in client.
+local SECRET = {}
+local function secretError()
+    error("attempt to use a secret value", 2)
+end
+for _, event in ipairs({"__lt", "__le", "__eq", "__add", "__sub", "__mul", "__div", "__mod", "__pow",
+    "__unm", "__concat", "__len", "__tostring", "__index", "__call"}) do
+    SECRET[event] = secretError
+end
+-- kind: the type the client reports for it (type() of a secret number is "number").
+local secretKinds = setmetatable({}, {__mode = "k"})
+local function secretValue(kind)
+    local value = setmetatable({}, SECRET)
+    secretKinds[value] = kind or "number"
+    return value
+end
+local function isSecret(value) return type(value) == "table" and getmetatable(value) == SECRET end
+
 -- Skill lines as C_SkillInfo reports them, in client order.
 local function line(id, name, rank, maxRank, extra)
     local info = {skillID = id, name = name, isHeader = false, isCollapsed = false,
@@ -113,12 +132,31 @@ local function fixture(options)
         return lines
     end
     state.expanded = {}
+    -- Secret values, as in client under combat restrictions: state.secret
+    -- names the line fields to hide ({rank = true, ...}); state.secretCount
+    -- and state.secretDefense hide the line count and Defense's bonus.
+    env.issecretvalue = function(value) return isSecret(value) end
+    env.type = function(value)
+        if isSecret(value) then return secretKinds[value] end
+        return type(value)
+    end
+    local function reveal(info)
+        if not info or not state.secret then return info end
+        local copy = {}
+        for key, value in pairs(info) do
+            copy[key] = state.secret[key] and secretValue(type(value)) or value
+        end
+        return copy
+    end
     env.C_SkillInfo = {
-        GetNumSkillLines = function() return #visibleLines() end,
-        GetSkillLineInfo = function(index) return visibleLines()[index] end,
+        GetNumSkillLines = function()
+            if state.secretCount then return secretValue() end
+            return #visibleLines()
+        end,
+        GetSkillLineInfo = function(index) return reveal(visibleLines()[index]) end,
         GetSkillLineInfoByID = function(id)
             for _, info in ipairs(state.skills) do
-                if info.skillID == id then return info end
+                if info.skillID == id then return reveal(info) end
             end
         end,
         ExpandSkillHeader = function(index)
@@ -138,6 +176,7 @@ local function fixture(options)
     }
     env.UnitDefenseSkill = function(unit)
         equal(unit, "player")
+        if state.secretDefense then return secretValue(), secretValue() end
         return state.defense[1], state.defense[2]
     end
 
@@ -244,9 +283,70 @@ local function fixture(options)
                 state.settingsCategory = category
                 return category, {}
             end,
+            RegisterCanvasLayoutSubcategory = function(parent, frame, name)
+                local category = {parent = parent, frame = frame, name = name}
+                function category:GetID() return 78 end
+                state.settingsCategory = category
+                return category, {}
+            end,
             RegisterAddOnCategory = function(category) state.settingsRegistered = category end,
             OpenToCategory = function(id) state.settingsOpened[#state.settingsOpened + 1] = id end,
         }
+    end
+    -- Dyre's Toolkit (contract 1), recording what WSK asks of it.
+    if options.toolkit then
+        local kit = {locked = options.toolkitUnlocked ~= true, movables = {}, addons = {}, calls = {}, opened = {},
+            home = {name = "Dyre's AddOns"}}
+        state.toolkit = kit
+        local function record(name)
+            kit.calls[#kit.calls + 1] = name
+        end
+        local toolkit = {}
+        function toolkit.RequireContract(required)
+            if required >= 1 and required <= (options.toolkitContract or 1) then return toolkit end
+        end
+        function toolkit.IsLocked() return kit.locked end
+        function toolkit.SetLocked(locked)
+            record("SetLocked")
+            kit.locked = locked == true
+            for _, info in ipairs(kit.addons) do
+                if info.setLocked then info.setLocked(kit.locked) end
+            end
+        end
+        function toolkit.Lock() record("Lock"); toolkit.SetLocked(true) end
+        function toolkit.Unlock() record("Unlock"); toolkit.SetLocked(false) end
+        function toolkit.RegisterAddOn(info)
+            kit.addons[#kit.addons + 1] = info
+            if not kit.locked and info.setLocked then info.setLocked(false) end
+            return true
+        end
+        function toolkit.RegisterMovable(frame, save)
+            kit.movables[frame] = save
+            return true
+        end
+        function toolkit.BeginDrag(frame)
+            record("BeginDrag")
+            if kit.locked or not kit.movables[frame] then return end
+            kit.dragging = frame
+            frame:StartMoving()
+        end
+        -- As the toolkit: drops the frame on a grid point and saves its center.
+        function toolkit.EndDrag(frame)
+            record("EndDrag")
+            if kit.dragging ~= frame then return end
+            kit.dragging = nil
+            frame:StopMovingOrSizing()
+            local position = {point = "CENTER", relativePoint = "BOTTOMLEFT", x = 320, y = 256}
+            frame:ClearAllPoints()
+            frame:SetPoint(position.point, env.UIParent, position.relativePoint, position.x, position.y)
+            kit.movables[frame](position)
+        end
+        function toolkit.SettingsCategory() return kit.home end
+        function toolkit.OpenSettings(category)
+            kit.opened[#kit.opened + 1] = category
+            return true
+        end
+        env.DyresToolkit = toolkit
     end
     env.GameTooltip = widget("Tooltip")
     function env.GameTooltip:SetOwner(owner, anchor) self.owner, self.anchor = owner, anchor end
@@ -284,7 +384,12 @@ local function fixture(options)
         state.config = env.WeaponSkillsForeverConfig
         state.settings = env.WeaponSkillsForeverSettings
         if namespace.available then
-            equal(#state.messages, 2, "banner and ready hint")
+            if namespace.toolkit then
+                equal(#state.messages, 2, "banner and ready hint")
+            else
+                equal(#state.messages, 3, "banner, ready hint, and where to get Dyre's Toolkit")
+                contains(state.messages[3], "Install Dyre's Toolkit from CurseForge")
+            end
             state.messages = {}
         end
     end
@@ -436,6 +541,7 @@ test("login banner shows TOC title, version, and author, then a ready hint", fun
     same(state.messages, {
         "WSK: Weapon Skills Forever " .. state.toc.Version .. " by Dyre",
         "WSK:   Ready. Click the gear on the skill box, or type /wsk config, to choose skills.",
+        "WSK: Install Dyre's Toolkit from CurseForge for one layout mode and settings home for all Dyre's AddOns.",
     })
 end)
 test("login reports a mixed install", function()
@@ -1056,6 +1162,215 @@ test("the Settings Defaults button resets opacities only", function()
     same(state.wsk.GetTracked(), {43}, "tracked skills kept")
     equal(state.wsk.db.locked, true)
     equal(state.wsk.db.position.point, "TOP")
+end)
+
+-- Secret values ----------------------------------------------------------------
+
+local ALL_SECRET = {skillID = true, name = true, isHeader = true, isCollapsed = true, rank = true,
+    maxRank = true, modifier = true, skillLineCategoryID = true, parentSkillLineID = true}
+
+test("a secret modifier keeps the last known bonus (BugGrabber UI.lua:150)", function()
+    local state = fixture({db = {tracked = {43}}})
+    contains(rowsFor(state)[1].text, "(+5)")
+    state.secret = {modifier = true}
+    state.emit("SKILL_LINES_CHANGED")
+    local row = rowsFor(state)[1]
+    contains(row.text, "297 ")
+    contains(row.text, "(+5)")
+    same(state.wsk.GetTracked(), {43})
+end)
+test("a secret Defense bonus keeps the last known bonus", function()
+    local state = fixture({db = {tracked = {95}}})
+    state.defense = {280, 4}
+    state.emit("SKILL_LINES_CHANGED")
+    contains(rowsFor(state)[1].text, "(+4)")
+    state.secretDefense = true
+    state.emit("SKILL_LINES_CHANGED")
+    contains(rowsFor(state)[1].text, "(+4)")
+end)
+test("secret ranks and caps show the last known values and are not pruned", function()
+    local state = fixture({db = {tracked = {43, 44}}})
+    state.secret = ALL_SECRET
+    state.emit("SKILL_LINES_CHANGED")
+    same(state.wsk.GetTracked(), {43, 44})
+    local rows = rowsFor(state)
+    equal(#rows, 2)
+    equal(rows[1].value, 297)
+    equal(rows[1].max, 300)
+    same(rows[1].color, YELLOW)
+    equal(rows[2].text, "120 / 300")
+    state.wsk.HandleCommand("debug_skills")
+    contains(state.messages[2], "<secret>")
+end)
+test("skills never seen plain stay tracked, and the box says the game hides them", function()
+    local state = fixture({login = false, db = {tracked = {43}}})
+    state.secret = ALL_SECRET
+    state.emit("ADDON_LOADED", "WeaponSkillsForever")
+    state.emit("PLAYER_LOGIN")
+    equal(state.wsk.available, true)
+    state.emit("SKILL_LINES_CHANGED")
+    same(state.wsk.GetTracked(), {43}, "not pruned")
+    state.tracker = state.env.WeaponSkillsForeverTracker
+    equal(#trackedRows(state), 0)
+    contains(state.tracker.empty.text, "hides skill values")
+    state.secret = nil
+    state.emit("SKILL_LINES_CHANGED")
+    equal(#trackedRows(state), 1, "back when the values are plain")
+    equal(state.tracker.empty.shown, false)
+end)
+test("an empty view still says to choose skills when nothing is hidden", function()
+    local state = fixture({db = {tracked = {43}}})
+    state.wsk.SetView("other")
+    contains(state.tracker.empty.text, "Click the gear")
+end)
+test("a secret line count prunes nothing and lists nothing", function()
+    local state = fixture({db = {tracked = {43}}})
+    state.secretCount = true
+    state.emit("SKILL_LINES_CHANGED")
+    same(state.wsk.GetTracked(), {43})
+    state.wsk.HandleCommand("debug_skills")
+    contains(state.messages[1], "debug_skills lines=0")
+end)
+test("the setup panel and settings page open while values are secret", function()
+    local state = fixture({db = {tracked = {43}}})
+    state.secret = ALL_SECRET
+    state.wsk.ToggleConfig()
+    state.settings.OnRefresh()
+    contains(state.config.count.text, "Weapons 1 of 6")
+end)
+
+-- Dyre's Toolkit -------------------------------------------------------------
+
+local LOCK = "Lock the skill box position"
+
+test("without Dyre's Toolkit the box keeps its own lock, drag, and page", function()
+    local state = fixture()
+    equal(state.wsk.toolkit, nil)
+    equal(state.settingsCategory.parent, nil, "top-level page")
+    equal(state.settingsRegistered, state.settingsCategory)
+    equal(settingsChecks(state)[LOCK], state.settings.locked, "the settings page has the lock")
+    same(state.settings.reset.points[1], {"TOPLEFT", 20, -140}, "reset below the lock")
+    equal(state.config.lock ~= nil, true, "the gear panel has the lock")
+    local label
+    for _, child in ipairs(state.config.children) do
+        if child.kind == "FontString" and child.text == LOCK then label = child end
+    end
+    equal(label ~= nil, true, "the gear panel's lock has its label")
+    state.wsk.HandleCommand("lock")
+    same(state.messages, {"WSK: Skill box locked."})
+    state.wsk.HandleCommand("unlock")
+    equal(state.messages[2], "WSK: Skill box unlocked. Drag it to move it.")
+end)
+test("a Dyre's Toolkit too old for contract 1 counts as missing", function()
+    local state = fixture({toolkit = true, toolkitContract = 0})
+    equal(state.wsk.toolkit, nil, "login asked for the install line (fixture)")
+    equal(next(state.toolkit.movables), nil, "the box is not registered")
+    equal(#state.toolkit.addons, 0)
+    state.wsk.HandleCommand("unlock")
+    equal(#state.toolkit.calls, 0)
+end)
+test("with Dyre's Toolkit, login registers WSK and says no install line", function()
+    local state = fixture({toolkit = true})
+    equal(state.wsk.toolkit, state.env.DyresToolkit)
+    equal(#state.toolkit.addons, 1)
+    local info = state.toolkit.addons[1]
+    equal(info.addon, "WeaponSkillsForever")
+    equal(info.title, "Weapon Skills Forever")
+    equal(info.setLocked, state.wsk.ApplyLocked)
+    equal(info.openSettings, state.wsk.OpenSettings)
+    equal(type(state.toolkit.movables[state.tracker]), "function", "the box is registered to move")
+end)
+test("with Dyre's Toolkit, the box starts with the toolkit's lock", function()
+    local locked = fixture({toolkit = true, db = {locked = false}})
+    equal(locked.wsk.db.locked, true, "the toolkit starts locked")
+    local unlocked = fixture({toolkit = true, toolkitUnlocked = true, db = {locked = true}})
+    equal(unlocked.wsk.db.locked, false)
+end)
+test("with Dyre's Toolkit, the toolkit drags, snaps, and saves the box", function()
+    local state = fixture({toolkit = true})
+    state.fire(state.tracker, "OnDragStart")
+    equal(state.tracker.moving, nil, "locked: the toolkit does not start a drag")
+    state.fire(state.tracker, "OnDragStop")
+    equal(state.wsk.db.position, nil, "nothing saved without a drag")
+    state.wsk.HandleCommand("unlock")
+    state.fire(state.tracker, "OnDragStart")
+    equal(state.tracker.moving, true)
+    state.fire(state.tracker, "OnDragStop")
+    equal(state.tracker.moving, false)
+    same(state.wsk.db.position, {point = "CENTER", relativePoint = "BOTTOMLEFT", x = 320, y = 256})
+    same(state.toolkit.calls, {"BeginDrag", "EndDrag", "Unlock", "SetLocked", "BeginDrag", "EndDrag"})
+end)
+test("a position the toolkit saved is applied at login", function()
+    local state = fixture({toolkit = true,
+        db = {position = {point = "CENTER", relativePoint = "BOTTOMLEFT", x = 320, y = 256}}})
+    same(state.tracker.points[#state.tracker.points], {"CENTER", state.env.UIParent, "BOTTOMLEFT", 320, 256})
+end)
+test("with Dyre's Toolkit, /wsk lock and unlock lock every Dyre's AddOn quietly", function()
+    local state = fixture({toolkit = true})
+    state.wsk.ToggleConfig()
+    state.wsk.HandleCommand("unlock")
+    equal(state.toolkit.locked, false)
+    equal(state.wsk.db.locked, false)
+    state.settings.OnRefresh()
+    state.wsk.HandleCommand("lock")
+    equal(state.toolkit.locked, true)
+    equal(state.wsk.db.locked, true)
+    same(state.messages, {}, "the toolkit says one line for all")
+    same(state.toolkit.calls, {"Unlock", "SetLocked", "Lock", "SetLocked"})
+end)
+test("with Dyre's Toolkit, the settings page and gear panel have no lock checkbox", function()
+    local state = fixture({toolkit = true})
+    equal(state.settings.locked, nil)
+    equal(state.config.lock, nil)
+    for _, child in ipairs(state.settings.children) do
+        equal(child.text == LOCK, false, "no lock label on the settings page")
+    end
+    for _, child in ipairs(state.config.children) do
+        equal(child.kind == "CheckButton" and child.text == LOCK, false, "no lock in the gear panel")
+        equal(child.text == LOCK, false, "no lock label in the gear panel")
+    end
+    equal(settingsChecks(state)["Show the skill box"] ~= nil, true, "show stays")
+    same(state.settings.reset.points[1], {"TOPLEFT", 20, -112}, "reset moves up into the lock's place")
+    state.fire(state.settings.reset, "OnClick")
+    contains(state.messages[1], "default position")
+end)
+test("with Dyre's Toolkit, the gear panel drops the lock row", function()
+    local plain, kit = fixture(), fixture({toolkit = true})
+    equal(plain.config.height - kit.config.height, 28, "one row shorter")
+    equal(kit.config.next.points[1][3] - plain.config.next.points[1][3], 28, "the pager moves up")
+end)
+test("another AddOn's unlock through the toolkit unlocks the box", function()
+    local state = fixture({toolkit = true})
+    state.wsk.ToggleConfig()
+    state.env.DyresToolkit.Unlock()
+    equal(state.wsk.db.locked, false)
+    equal(#state.messages, 0)
+end)
+test("with Dyre's Toolkit, the settings page sits under Dyre's AddOns", function()
+    local state = fixture({toolkit = true})
+    equal(state.settingsCategory.parent, state.toolkit.home)
+    equal(state.settingsCategory.name, "Weapon Skills Forever")
+    equal(state.settingsCategory.frame, state.settings)
+    equal(state.settingsRegistered, nil, "not a second top-level entry")
+    state.wsk.HandleCommand("options")
+    same(state.toolkit.opened, {state.settingsCategory}, "the toolkit opens it, never in combat")
+    same(state.settingsOpened, {})
+end)
+test("with Dyre's Toolkit but no Settings API, /wsk options explains", function()
+    local state = fixture({toolkit = true, settings = false})
+    equal(state.settings, nil)
+    state.wsk.HandleCommand("options")
+    contains(state.messages[1], "settings page is unavailable")
+    same(state.toolkit.opened, {})
+end)
+test("login reports a mixed install missing the toolkit lock functions", function()
+    local state = fixture({login = false, toolkit = true})
+    state.wsk.ApplyLocked = nil
+    state.emit("ADDON_LOADED", "WeaponSkillsForever")
+    state.emit("PLAYER_LOGIN")
+    equal(state.wsk.available, false)
+    contains(state.messages[2], "missing ApplyLocked")
+    equal(#state.toolkit.addons, 0, "not registered with the toolkit")
 end)
 
 local failed = 0

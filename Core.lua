@@ -3,6 +3,11 @@ local addonName, WSK = ...
 local DEFAULT_TITLE = "Weapon Skills Forever"
 local READY_MESSAGE = "  Ready. Click the gear on the skill box, or type /wsk config, to choose skills."
 local UNAVAILABLE = "Weapon Skills Forever is unavailable. Check the WSK login message."
+-- Dyre's Toolkit (contract 1), when installed: one layout mode, snapping
+-- across Dyre's AddOns and to the grid, and the "Dyre's AddOns" settings home.
+local TOOLKIT_CONTRACT = 1
+local INSTALL_TOOLKIT = "Install Dyre's Toolkit from CurseForge for one layout mode and settings home for all "
+    .. "Dyre's AddOns."
 WSK.available = false
 
 function WSK.Report(message)
@@ -40,8 +45,8 @@ end
 local REQUIRED_NAMESPACE = {
     "ParseCommand", "HandleCommand", "CheckCapabilities", "GetSkill",
     "ListTrackableSkills", "ListSetupEntries", "ExpandHeader", "CollapseHeader", "SkillStatus",
-    "SkillType", "OrderSkills",
-    "InitializeUI", "RefreshUI", "OpenSettings",
+    "SkillType", "OrderSkills", "IsSecret", "Describe", "CountSkillLines", "ReadSkillLine", "IsUnlearned",
+    "InitializeUI", "RefreshUI", "OpenSettings", "ApplyLocked", "SetLocked",
 }
 
 local function CheckInstalledFiles()
@@ -204,42 +209,47 @@ end
 -- Drops skills the character no longer has (an abandoned profession, for
 -- example). Skipped while the client reports no skill lines at all, which can
 -- happen before skill data arrives.
+-- Secret values (and a secret line count) count as unknown, never as unlearned.
 local function PruneUnlearned()
-    if C_SkillInfo.GetNumSkillLines() == 0 then
+    if WSK.CountSkillLines() == 0 then
         return
     end
     local tracked = WSK.db.tracked
     for index = #tracked, 1, -1 do
-        if not WSK.GetSkill(tracked[index]) then
+        if WSK.IsUnlearned(tracked[index]) then
             table.remove(tracked, index)
         end
     end
 end
 
 -- /wsk debug_skills: every line the client reports, including whether collapsed
--- headers hide skills and which category and parent each line has.
+-- headers hide skills and which category and parent each line has. Raw values
+-- are printed, a secret one as <secret>; decisions use the plain copy.
 function WSK.ReportSkillDebug()
-    local lines, headers, collapsed, children = C_SkillInfo.GetNumSkillLines(), 0, 0, 0
+    local lines, headers, collapsed, children = WSK.CountSkillLines(), 0, 0, 0
     local details = {}
+    local D = WSK.Describe
     for index = 1, lines do
         local info = C_SkillInfo.GetSkillLineInfo(index)
-        if type(info) == "table" and info.isHeader then
+        local line = WSK.ReadSkillLine(index)
+        if type(line) == "table" and line.isHeader then
             headers = headers + 1
-            if info.isCollapsed then
+            if line.isCollapsed then
                 collapsed = collapsed + 1
             end
             details[#details + 1] = string.format("debug_skills header id=%s name=%s collapsed=%s",
-                tostring(info.skillID), tostring(info.name), tostring(info.isCollapsed))
-        elseif type(info) == "table" then
-            if (info.parentSkillLineID or 0) ~= 0 then
+                D(info.skillID), D(info.name), D(info.isCollapsed))
+        elseif type(line) == "table" then
+            if (line.parentSkillLineID or 0) ~= 0 then
                 children = children + 1
             end
+            local id = type(line.skillID) == "number" and line.skillID or nil
             details[#details + 1] = string.format(
                 "debug_skills id=%s name=%s category=%s parent=%s rank=%s max=%s trackable=%s tracked=%s",
-                tostring(info.skillID), tostring(info.name), tostring(info.skillLineCategoryID),
-                tostring(info.parentSkillLineID), tostring(info.rank), tostring(info.maxRank),
-                tostring(WSK.GetSkill(info.skillID) ~= nil),
-                tostring(WSK.IsTracked(info.skillID)))
+                D(info.skillID), D(info.name), D(info.skillLineCategoryID),
+                D(info.parentSkillLineID), D(info.rank), D(info.maxRank),
+                tostring(id ~= nil and WSK.GetSkill(id) ~= nil),
+                tostring(id ~= nil and WSK.IsTracked(id)))
         end
     end
     WSK.Report(string.format("debug_skills lines=%d headers=%d collapsed=%d children=%d trackable=%d tracked=%d",
@@ -279,9 +289,23 @@ events:SetScript("OnEvent", function(self, event, loadedName)
             WSK.Report(message)
             return
         end
+        local toolkit = _G.DyresToolkit
+        if type(toolkit) == "table" and type(toolkit.RequireContract) == "function" then
+            WSK.toolkit = toolkit.RequireContract(TOOLKIT_CONTRACT)
+        end
+        if WSK.toolkit then
+            -- The toolkit's frames start locked at login; the box follows.
+            WSK.db.locked = WSK.toolkit.IsLocked()
+        else
+            WSK.Report(INSTALL_TOOLKIT)
+        end
         -- Called directly rather than from UI's own PLAYER_LOGIN handler, so
         -- startup never depends on event handler order.
         WSK.InitializeUI()
+        if WSK.toolkit then
+            WSK.toolkit.RegisterAddOn({addon = addonName, title = DEFAULT_TITLE, setLocked = WSK.ApplyLocked,
+                openSettings = WSK.OpenSettings})
+        end
     elseif WSK.available then
         PruneUnlearned()
         WSK.RefreshUI()

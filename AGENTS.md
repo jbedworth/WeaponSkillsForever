@@ -52,6 +52,36 @@ normally visible only on the Skills tab of the Character window.
   shown/locked state are saved per character in `WeaponSkillsForeverDB`
   (`SavedVariablesPerCharacter`).
 
+### With Dyre's Toolkit (built; author-approved, 2026-10-19)
+
+Dyre's Toolkit (`DyresToolkit`, its own repository, owned by the coordinating
+session; do not edit it here) gives Dyre's AddOns one layout mode, snapping
+across AddOns and to the grid, a minimap menu, and one settings home.
+
+- TOC: `## OptionalDeps: DyresToolkit` (never `## Dependencies`, so WSK loads
+  without it) and `## Group: DyresToolkit`. CurseForge uploads list
+  `dyres-toolkit` as a required dependency, so the app installs it.
+- At `PLAYER_LOGIN`, Core takes `DyresToolkit.RequireContract(1)` as
+  `WSK.toolkit`, sets `db.locked` from `IsLocked()` (the toolkit starts
+  locked), builds the UI, then calls `RegisterAddOn` (addon, title,
+  `setLocked = WSK.ApplyLocked`, `openSettings = WSK.OpenSettings`).
+- The box registers with `RegisterMovable` (the save function stores the
+  toolkit's `{point = "CENTER", relativePoint = "BOTTOMLEFT", x, y}` in
+  `db.position`) and drags only through `BeginDrag`/`EndDrag`: the toolkit
+  checks the lock and combat, snaps, and saves.
+- `/wsk lock` and `/wsk unlock` go through the toolkit, which locks every
+  Dyre's AddOn and says one `Dyre:` line; `ApplyLocked` is quiet. The
+  settings page and gear panel have no lock checkbox (author: redundant with
+  the toolkit's "Unlock frames" switch); "Reset position" and the gear
+  panel's pager move up into its place. Without the toolkit, both lock
+  checkboxes stay: they are the only lock there.
+- The settings page is `Settings.RegisterCanvasLayoutSubcategory` under the
+  toolkit's `SettingsCategory()`, opened with `toolkit.OpenSettings` (never in
+  combat).
+- Otherwise (no toolkit or a contract it lacks): WSK's own drag, lock, chat
+  lines, and top-level page, as before, plus one login line naming CurseForge
+  as the place to install the toolkit.
+
 Keep this narrow feature set. Do not add automatic weapon switching, skill-up
 alerts, account-wide profiles, or other features without agreement.
 
@@ -60,8 +90,8 @@ alerts, account-wide profiles, or other features without agreement.
 - Runtime files: WeaponSkillsForever.toc, Commands.lua, Skills.lua, Core.lua,
   UI.lua, loaded in that order. Commands parses `/wsk`; Skills owns the skill
   API boundary, trackable-skill rules, and cap status; Core owns events, saved
-  settings, tracking limits, the login banner, and diagnostics; UI owns the box
-  and setup panel.
+  settings, tracking limits, the login banner, diagnostics, and joining Dyre's
+  Toolkit; UI owns the box, setup panel, and settings page.
 - tests/run.lua holds the Lua 5.1 mock suite. tests/test_*.py cover the release
   helpers in scripts/. .github/workflows/ holds CI, opt-in publishing, and the
   approval gate check.
@@ -76,10 +106,12 @@ alerts, account-wide profiles, or other features without agreement.
 - The project uses the MIT License. The public author name is `Dyre` (TOC
   `## Author`, login banner, listings); LICENSE keeps the legal name, John
   Bedworth, and the release builder requires that exact notice.
-- The TOC uses `## Category: Quests & Leveling`, the author-selected text matching
-  the CurseForge main category; the in-game AddOn list groups by exact text, so
-  keep the two identical. CurseForge additional categories: Professions,
-  Warrior, Rogue, Hunter.
+- The TOC has `## Group: DyresToolkit`, so WSK nests under Dyre's Toolkit in
+  the in-game AddOn list, as every Dyre's AddOn does. Its
+  `## Category: Quests & Leveling` groups it only when the toolkit is missing;
+  keep that identical to the CurseForge main category (author-selected),
+  because the list groups by exact text. CurseForge additional categories:
+  Professions, Warrior, Rogue, Hunter.
 - WSK ships no texture files. Use built-in client textures and code-created
   color textures only; add no runtime assets without agreement.
 - Git origin: git@github.com:jbedworth/WeaponSkillsForever.git. Inspect Git
@@ -87,10 +119,11 @@ alerts, account-wide profiles, or other features without agreement.
 
 ## Client and API verification
 
-- Target: Forever beta 1.60.1, build 70338, Interface 16001, Lua 5.1. Pin source
+- Target: Forever beta 1.60.1, build 70450, Interface 16001, Lua 5.1. Pin source
   review to Gethe/wow-ui-source commit
-  `943764493e6b16d63ded3ab304150d1f05e58b57`. Treat target-client documentation
-  and FrameXML as authoritative; Retail and Classic examples are references only.
+  `943764493e6b16d63ded3ab304150d1f05e58b57` (the 70338 source; the client
+  was tested on 70450). Treat target-client documentation and FrameXML as
+  authoritative; Retail and Classic examples are references only.
 - Do not gate the runtime on client version, build, or Interface. Gate only on
   the required `C_SkillInfo` functions.
 - Track skills by `skillID` (`GetSkillLineInfoByID`), never by list index, which
@@ -105,6 +138,16 @@ alerts, account-wide profiles, or other features without agreement.
   Clicking expands or collapses that header, the same action as clicking it on
   the Skills tab. WSK never expands or collapses headers on its own.
 - Defense (skill 95) reads its bonus from `UnitDefenseSkill("player")`.
+- The target client has Midnight's secret values: a skill line's fields (seen
+  in client: `modifier`, from `SKILL_LINES_CHANGED`) and `UnitDefenseSkill`
+  can be secret, and `type()` still says "number". Never compare, do
+  arithmetic on, concatenate, index by, or print a value that may be secret:
+  read lines only through Skills' `ReadSkillLine`/`GetSkill` (a plain copy
+  with each secret field replaced by its last known value for the session),
+  check `WSK.IsSecret` first, and print with `WSK.Describe`. A secret value
+  never makes a skill count as unlearned (`WSK.IsUnlearned`), so nothing is
+  pruned; a tracked skill never seen plain stays tracked, and the box says
+  the game hides its values.
 - WoW APIs can return no values rather than nil; store results in locals before
   passing them to `tostring`, and make mocks return no values in those cases.
   The client may not show Lua error popups, so diagnostics report errors in chat.
