@@ -169,11 +169,15 @@ BugGrabber report from the client did.
       no longer drags; `/wsk reset` restores the default position.
 - [ ] Tracked skills and position are kept after relogging, and are separate on
       a second character.
-- [ ] Escape and the X button close the setup panel; `/wsk` hides and shows the box.
+- [ ] Escape and the X button close the setup panel; `/wsk hide` and `/wsk show`
+      hide and show the box.
+- [ ] `/wsk` and `/weaponskills` open the settings page; in combat they print
+      "WSK: The settings open out of combat." and open nothing. `/wsk help`
+      lists the commands. `/wsf` still belongs to Weapon Sets Forever.
 - [ ] The opacity sliders change the box background and skill rows at once,
       show the value, survive `/reload`, and reset with the panel's Defaults
       button without touching tracked skills.
-- [ ] Options > AddOns lists Weapon Skills Forever; `/wsk options` opens it. Its
+- [ ] Options > AddOns lists Weapon Skills Forever; `/wsk` opens it. Its
       show and lock checkboxes, reset button, and skill selector work and stay in
       step with the box and gear panel; Layout and Theme show disabled.
 - [ ] No Lua errors or taint warnings in or out of combat.

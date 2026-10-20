@@ -151,6 +151,13 @@ alerts, account-wide profiles, or other features without agreement.
 - WoW APIs can return no values rather than nil; store results in locals before
   passing them to `tostring`, and make mocks return no values in those cases.
   The client may not show Lua error popups, so diagnostics report errors in chat.
+- Commands (author-approved, 1.1.0): `/wsk` and the backup `/weaponskills`
+  (`SLASH_WEAPONSKILLSFOREVER1` and `2`). With no text they open the settings,
+  as `/wsk options` does (the toolkit's page or WSK's own; never in combat,
+  where WSK says so); `/wsk help` prints the usage, also when WSK is
+  unavailable. Core reports once at login when another command key uses
+  `/wsk` or `/weaponskills`. Never register or touch `/wsf`: it belongs to
+  Weapon Sets Forever.
 - Prefer `/wsk debug_*` commands over long `/run` scripts, which exceed the
   chat input limit.
 
@@ -196,7 +203,10 @@ alerts, account-wide profiles, or other features without agreement.
 - Do not create commits, tags, uploads, or releases unless asked.
 - Every release needs a `## <version>` section in CHANGELOG.md with player-facing
   changes; the builder puts it at the top of release-notes.md (GitHub release
-  notes and CurseForge changelog) and fails without it.
+  notes and CurseForge changelog) and fails without it. Under each version,
+  use `### Features`, `### Fixes`, and `### Other changes`, in that order,
+  with descriptive player-facing bullets; leave out an empty subsection
+  (family rule, author). The builder stops a section only at `## `.
 - Package only WeaponSkillsForever.toc, Commands.lua, Skills.lua, Core.lua,
   UI.lua, and LICENSE under the top-level `WeaponSkillsForever/` folder, named
   `WeaponSkillsForever-<version>-forever.zip`, with the builder's BigWigs-format

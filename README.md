@@ -45,7 +45,7 @@ change several times a week. It checks at login for the skill API it needs
 - When the game hides skill values (for example in combat), the box keeps the
   last values it saw and updates when the game shows them again.
 - **Options → AddOns → Weapon Skills Forever** (with Dyre's Toolkit, under
-  **Dyre's AddOns**; or `/wsk options`) has the same
+  **Dyre's AddOns**; or `/wsk`) has the same
   controls in the game's settings: show or hide the box, lock it (without
   Dyre's Toolkit), reset its position, choose tracked skills, and set the **opacity** of the box
   background (default 50%) and of the skill rows (default 90%). Layout
@@ -78,13 +78,16 @@ top-level settings page, and says once at login where to get the toolkit.
 
 | Command | Effect |
 | --- | --- |
-| `/wsk` | Show or hide the skill box |
+| `/wsk`, `/wsk options` | Open the AddOn settings page (not in combat) |
 | `/wsk config` | Open or close the setup panel |
-| `/wsk options` | Open the AddOn settings page |
 | `/wsk show`, `/wsk hide` | Show or hide the skill box |
 | `/wsk lock`, `/wsk unlock` | Stop or allow dragging the box (with Dyre's Toolkit, the frames of every Dyre's AddOn) |
 | `/wsk reset` | Move the box back to its default position |
 | `/wsk debug_skills` | Print what the client reports about your skill lines |
+| `/wsk help` | List the commands |
+
+`/weaponskills` works the same as `/wsk`, in case another AddOn uses `/wsk`;
+WSK says so once at login when one does.
 
 ## Installation
 

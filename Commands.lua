@@ -1,20 +1,27 @@
 local _, WSK = ...
 
-local USAGE = "Use /wsk, /wsk config, /wsk options, /wsk show, /wsk hide, /wsk lock, /wsk unlock, /wsk reset, or /wsk debug_skills."
+local USAGE = "Use /wsk (settings), /wsk config, /wsk show, /wsk hide, /wsk lock, /wsk unlock, /wsk reset, "
+    .. "/wsk debug_skills, or /wsk help. /weaponskills works the same."
 local UNAVAILABLE = "Weapon Skills Forever is unavailable. Check the WSK login message."
 
--- Each command is one word; "" toggles the tracker. Handlers live in Core and UI.
+-- Each command is one word; "" opens the settings, as options does
+-- (author-approved). Handlers live in Core and UI.
 local COMMANDS = {
-    [""] = "ToggleTracker",
-    config = "ToggleConfig",
+    [""] = "OpenSettings",
     options = "OpenSettings",
+    config = "ToggleConfig",
     show = "ShowTracker",
     hide = "HideTracker",
     lock = "LockTracker",
     unlock = "UnlockTracker",
     reset = "ResetTrackerPosition",
     debug_skills = "ReportSkillDebug",
+    help = "ReportUsage",
 }
+
+function WSK.ReportUsage()
+    WSK.Report(USAGE)
+end
 
 function WSK.ParseCommand(message)
     if type(message) ~= "string" then
@@ -33,7 +40,8 @@ function WSK.HandleCommand(message)
         WSK.Report(usage)
         return
     end
-    if not WSK.available then
+    -- help also works when WSK is unavailable.
+    if not WSK.available and command ~= "help" then
         WSK.Report(UNAVAILABLE)
         return
     end

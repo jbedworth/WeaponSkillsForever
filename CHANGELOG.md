@@ -4,6 +4,19 @@ Player-facing changes for each Weapon Skills Forever release, newest first. The
 release builder copies the section for the TOC version into the GitHub release
 notes and the CurseForge changelog, and fails if that section is missing.
 
+## 1.1.0
+
+### Features
+
+- `/wsk` now opens the settings page, as `/wsk options` does: under Dyre's AddOns when Dyre's Toolkit is installed, otherwise its own page. In combat it opens nothing and says that the settings open out of combat.
+- New backup command `/weaponskills`, which works the same as `/wsk`, for when another AddOn also uses `/wsk`.
+- `/wsk help` lists every command.
+- If another AddOn also uses `/wsk` or `/weaponskills`, WSK says so once at login and names the command to use instead.
+
+### Other changes
+
+- `/wsk` no longer shows or hides the skill box. Use `/wsk show` and `/wsk hide` for that.
+
 ## 1.0.0
 
 The first full release for WoW: Forever, no longer marked beta: it was play tested on the Forever beta client 1.60.1, build 70450. CurseForge now offers it as a release, so the app updates it and installs what it needs for every player.

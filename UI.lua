@@ -714,8 +714,12 @@ function WSK.OpenSettings()
         WSK.Report("The AddOn settings page is unavailable on this client. Use /wsk config.")
         return
     end
+    -- No panels in combat (the toolkit refuses too; this says it once, as WSK).
+    if type(InCombatLockdown) == "function" and InCombatLockdown() then
+        WSK.Report("The settings open out of combat. /wsk config opens the skill list now.")
+        return
+    end
     if WSK.toolkit then
-        -- The toolkit opens nothing in combat, and says so.
         WSK.toolkit.OpenSettings(settingsCategory)
         return
     end
@@ -734,17 +738,10 @@ function WSK.HideTracker(quiet)
     tracker:Hide()
     WSK.RefreshUI()
     if not quiet then
-        WSK.Report("Skill box hidden. Type /wsk to show it again.")
+        WSK.Report("Skill box hidden. Type /wsk show to show it again.")
     end
 end
 
-function WSK.ToggleTracker()
-    if tracker:IsShown() then
-        WSK.HideTracker()
-    else
-        WSK.ShowTracker()
-    end
-end
 
 -- The toolkit's lock callback: quiet, the toolkit says one line for all.
 function WSK.ApplyLocked(locked)

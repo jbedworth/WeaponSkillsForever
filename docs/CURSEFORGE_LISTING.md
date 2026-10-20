@@ -45,8 +45,9 @@ Per-file changelogs need no manual text: each CI upload uses the version's
 The CurseForge app installs Dyre's Toolkit with it: one layout mode (`/dyre unlock`) that snaps the box to other Dyre's AddOns' frames and to a grid, a minimap menu, and one settings home for all Dyre's AddOns. WSK still works without it.
 
 ### Commands
-- `/wsk` shows or hides the box. `/wsk config` opens the setup panel.
-- `/wsk options` opens the AddOn settings page (Options > AddOns), which has the same controls.
+- `/wsk` (or `/wsk options`) opens the AddOn settings page (Options > AddOns, under Dyre's AddOns with Dyre's Toolkit). `/wsk config` opens the setup panel.
+- `/wsk show` and `/wsk hide` show or hide the box. `/wsk help` lists the commands.
+- `/weaponskills` works the same as `/wsk`, in case another AddOn uses `/wsk`.
 - `/wsk lock`, `/wsk unlock`, and `/wsk reset` control the box position (with Dyre's Toolkit, lock and unlock apply to every Dyre's AddOn).
 
 ### Compatibility

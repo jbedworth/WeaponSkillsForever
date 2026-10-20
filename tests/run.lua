@@ -103,6 +103,12 @@ local function fixture(options)
     local env = setmetatable({}, {__index = _G})
     env._G = env
     env.SlashCmdList = {}
+    -- Another AddOn's slash commands, registered before WSK loads.
+    for key, aliases in pairs(options.otherSlash or {}) do
+        env.SlashCmdList[key] = function() end
+        for index, alias in ipairs(aliases) do env["SLASH_" .. key .. index] = alias end
+    end
+    env.InCombatLockdown = function() return state.combat == true end
     env.UISpecialFrames = {}
     env.IsLoggedIn = function() return false end
     env.DEFAULT_CHAT_FRAME = {AddMessage = function(_, message)
@@ -437,7 +443,7 @@ end
 
 for _, case in ipairs({{"", ""}, {"  ", ""}, {"config", "config"}, {" CONFIG ", "config"},
     {"show", "show"}, {"hide", "hide"}, {"lock", "lock"}, {"unlock", "unlock"},
-    {"reset", "reset"}, {"debug_skills", "debug_skills"}, {"options", "options"}}) do
+    {"reset", "reset"}, {"debug_skills", "debug_skills"}, {"options", "options"}, {"help", "help"}, {" HELP ", "help"}}) do
     local input, expected = case[1], case[2]
     test("command accepts '" .. input .. "'", function()
         equal(fixture({login = false}).wsk.ParseCommand(input), expected)
@@ -789,13 +795,13 @@ test("saved position is applied at login and reset restores the default", functi
     equal(state.wsk.db.position, nil)
     same(state.tracker.points[#state.tracker.points], {"RIGHT", state.env.UIParent, "RIGHT", -60, 120})
 end)
-test("hide and show persist and toggle", function()
+test("hide and show persist", function()
     local state = fixture()
-    state.wsk.HandleCommand("")
+    state.wsk.HandleCommand("hide")
     equal(state.tracker:IsShown(), false)
     equal(state.wsk.db.shown, false)
-    contains(state.messages[1], "/wsk to show")
-    state.wsk.HandleCommand("")
+    contains(state.messages[1], "/wsk show to show")
+    state.wsk.HandleCommand("show")
     equal(state.tracker:IsShown(), true)
     local hidden = fixture({db = {shown = false}})
     equal(hidden.tracker:IsShown(), false, "hidden state survives reload")
@@ -1162,6 +1168,90 @@ test("the Settings Defaults button resets opacities only", function()
     same(state.wsk.GetTracked(), {43}, "tracked skills kept")
     equal(state.wsk.db.locked, true)
     equal(state.wsk.db.position.point, "TOP")
+end)
+
+-- Slash commands -----------------------------------------------------------------
+
+test("/wsk and /weaponskills are WSK's commands, and /wsf is never touched", function()
+    local state = fixture()
+    equal(state.env.SLASH_WEAPONSKILLSFOREVER1, "/wsk")
+    equal(state.env.SLASH_WEAPONSKILLSFOREVER2, "/weaponskills")
+    equal(state.env.SLASH_WEAPONSKILLSFOREVER3, nil)
+    for key, value in pairs(state.env) do
+        if type(key) == "string" and key:find("^SLASH_") then
+            equal(value == "/wsf", false, key .. " must not be /wsf")
+        end
+    end
+end)
+for _, input in ipairs({"", "  ", "options"}) do
+    local message = input
+    test("'" .. message .. "' opens the settings page through the slash command", function()
+        local state = fixture()
+        state.env.SlashCmdList.WEAPONSKILLSFOREVER(message)
+        same(state.settingsOpened, {77})
+        equal(state.tracker:IsShown(), true, "no longer toggles the box")
+        equal(#state.messages, 0)
+    end)
+end
+test("/wsk opens the page under Dyre's AddOns with the toolkit", function()
+    local state = fixture({toolkit = true})
+    state.env.SlashCmdList.WEAPONSKILLSFOREVER("")
+    same(state.toolkit.opened, {state.settingsCategory})
+end)
+test("/wsk does not open the settings in combat, and says so once", function()
+    for _, toolkit in ipairs({false, true}) do
+        local state = fixture({toolkit = toolkit})
+        state.combat = true
+        state.env.SlashCmdList.WEAPONSKILLSFOREVER("")
+        same(state.settingsOpened, {})
+        if toolkit then same(state.toolkit.opened, {}) end
+        equal(#state.messages, 1)
+        contains(state.messages[1], "WSK: The settings open out of combat.")
+    end
+end)
+test("/wsk help lists the commands, also when WSK is unavailable", function()
+    local state = fixture()
+    state.wsk.HandleCommand("help")
+    equal(#state.messages, 1)
+    contains(state.messages[1], "/wsk (settings)")
+    contains(state.messages[1], "/weaponskills works the same")
+    state.wsk.available = false
+    state.wsk.HandleCommand("help")
+    contains(state.messages[2], "Use /wsk")
+end)
+test("another AddOn's /wsk is reported once at login, pointing to /weaponskills", function()
+    local state = fixture({login = false, otherSlash = {OTHERADDON = {"/other", "/WSK"}}})
+    state.emit("ADDON_LOADED", "WeaponSkillsForever")
+    state.emit("PLAYER_LOGIN")
+    local found = 0
+    for _, message in ipairs(state.messages) do
+        if message:find("also uses", 1, true) then
+            found = found + 1
+            equal(message, "WSK: Another AddOn (OTHERADDON) also uses /wsk. Use /weaponskills instead.")
+        end
+    end
+    equal(found, 1)
+    state.emit("SKILL_LINES_CHANGED")
+    equal(#state.messages, 3 + found, "banner, ready, install line, and the conflict, once")
+end)
+test("another AddOn's /weaponskills points to /wsk; both taken gives no advice", function()
+    local one = fixture({login = false, otherSlash = {OTHER = {"/weaponskills"}}})
+    one.emit("ADDON_LOADED", "WeaponSkillsForever")
+    one.emit("PLAYER_LOGIN")
+    contains(one.messages[3], "WSK: Another AddOn (OTHER) also uses /weaponskills. Use /wsk instead.")
+    local both = fixture({login = false, otherSlash = {OTHER = {"/wsk", "/weaponskills"}}})
+    both.emit("ADDON_LOADED", "WeaponSkillsForever")
+    both.emit("PLAYER_LOGIN")
+    equal(both.messages[3], "WSK: Another AddOn (OTHER) also uses /wsk.")
+    equal(both.messages[4], "WSK: Another AddOn (OTHER) also uses /weaponskills.")
+end)
+test("no conflict line when only WSK uses its commands", function()
+    local state = fixture({login = false, otherSlash = {WEAPONSETSFOREVER = {"/wsf"}}})
+    state.emit("ADDON_LOADED", "WeaponSkillsForever")
+    state.emit("PLAYER_LOGIN")
+    for _, message in ipairs(state.messages) do
+        equal(message:find("also uses", 1, true), nil, message)
+    end
 end)
 
 -- Secret values ----------------------------------------------------------------
