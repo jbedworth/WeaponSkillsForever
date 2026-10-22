@@ -14,9 +14,9 @@ you play, and colors each bar by how close it is to the cap.
 
 ## Compatibility
 
-WSK is tested on the Forever beta, `1.60.1` build `70450`, Interface `16001`,
-Lua `5.1`. It does not check the client version or build, because beta builds
-change several times a week. It checks at login for the skill API it needs
+For World of Warcraft: Forever `1.60.1` (tested on build `70450`, Interface
+`16001`, Lua `5.1`). WSK does not check the client version or build, because
+client builds change often. It checks at login for the skill API it needs
 (`C_SkillInfo`) and disables itself with one message if it is missing.
 
 ## Using it
