@@ -19,23 +19,178 @@ local HIDDEN_CATEGORIES = {[7] = true, [10] = true}
 -- Defense reports its bonus through UnitDefenseSkill, as in Blizzard's panel.
 local DEFENSE_SKILL_ID = 95
 local REQUIRED_APIS = {"GetNumSkillLines", "GetSkillLineInfo", "GetSkillLineInfoByID"}
+-- The classic skill-line globals (Classic Era and Anniversary have no
+-- C_SkillInfo functions; Blizzard's Classic SkillFrame uses these).
+local LEGACY_APIS = {"GetNumSkillLines", "GetSkillLineInfo"}
 
-function WSK.CheckCapabilities()
-    if type(C_SkillInfo) ~= "table" then
-        return false, "The skill API is unavailable on this client."
+-- The legacy API names no skill IDs or categories: a skill is known by its
+-- name, and a group by its header's name. These English header names map to
+-- Forever's categories; in any language, the group holding the Defense line
+-- (the client's DEFENSE string) is the weapon group.
+local LEGACY_CATEGORIES = {
+    ["Weapon Skills"] = WEAPON_CATEGORY,
+    ["Class Skills"] = 7,
+    ["Armor Proficiencies"] = 8,
+    ["Secondary Skills"] = 9,
+    ["Languages"] = 10,
+    ["Professions"] = 11,
+}
+
+local function HasAll(namespace, names)
+    if type(namespace) ~= "table" then
+        return false
     end
-    for _, name in ipairs(REQUIRED_APIS) do
-        if type(C_SkillInfo[name]) ~= "function" then
-            return false, "Required skill API is missing: " .. name
+    for _, name in ipairs(names) do
+        if type(namespace[name]) ~= "function" then
+            return false, name
         end
     end
     return true
+end
+
+-- The skill source: Count(), Line(index), ByID(id), and Expand/Collapse(index)
+-- when the client can toggle headers. Lines are tables in C_SkillInfo's form.
+local source
+
+local modernSource = {
+    Count = function() return C_SkillInfo.GetNumSkillLines() end,
+    Line = function(index) return C_SkillInfo.GetSkillLineInfo(index) end,
+    ByID = function(id) return C_SkillInfo.GetSkillLineInfoByID(id) end,
+}
+function modernSource.CanToggle()
+    return type(C_SkillInfo.ExpandSkillHeader) == "function"
+        and type(C_SkillInfo.CollapseSkillHeader) == "function"
+end
+function modernSource.Expand(index) C_SkillInfo.ExpandSkillHeader(index) end
+function modernSource.Collapse(index) C_SkillInfo.CollapseSkillHeader(index) end
+
+-- Legacy lines seen this session by name, and each one's group: a collapsed
+-- group hides its lines from the list, as on Forever, but there is no lookup
+-- by ID, so a hidden skill shows its last values.
+local legacySeen = {}
+
+-- Every listed line in C_SkillInfo's form. A header's skillID is its
+-- category, and its lines carry that category, as on Forever.
+local function LegacyLines()
+    local lines, collapsed = {}, {}
+    local count = GetNumSkillLines()
+    if WSK.IsSecret(count) or type(count) ~= "number" then
+        return lines, collapsed
+    end
+    local group
+    for index = 1, count do
+        local name, header, isExpanded, rank, tempPoints, modifier, maxRank = GetSkillLineInfo(index)
+        local plainName = not WSK.IsSecret(name) and type(name) == "string" and name or nil
+        local line = {name = name, isHeader = header, rank = rank, tempPoints = tempPoints,
+            modifier = modifier, maxRank = maxRank, parentSkillLineID = 0, isCollapsed = false}
+        if WSK.IsSecret(header) then
+            -- Unknown kind: ReadLine marks it unknown.
+            group = nil
+        elseif header then
+            line.isCollapsed = WSK.IsSecret(isExpanded) and isExpanded or not isExpanded
+            group = {header = line, name = plainName, hasDefense = false}
+            line.group = group
+        else
+            line.skillID = plainName
+            line.group = group
+            if group and plainName and type(DEFENSE) == "string" and plainName == DEFENSE then
+                group.hasDefense = true
+            end
+        end
+        lines[#lines + 1] = line
+    end
+    for _, line in ipairs(lines) do
+        local group = line.group
+        if group then
+            local category = (group.name and LEGACY_CATEGORIES[group.name])
+                or (group.hasDefense and WEAPON_CATEGORY) or group.name
+            if line.isHeader then
+                line.skillID = category
+                if line.isCollapsed == true and category then
+                    collapsed[category] = true
+                end
+            else
+                line.skillLineCategoryID = category
+                if line.skillID ~= nil then
+                    legacySeen[line.skillID] = line
+                end
+            end
+            line.group = nil
+        end
+    end
+    return lines, collapsed
+end
+
+local legacySource = {
+    Count = function() return #(LegacyLines()) end,
+    Line = function(index) return (LegacyLines())[index] end,
+}
+function legacySource.ByID(id)
+    local lines, collapsed = LegacyLines()
+    for _, line in ipairs(lines) do
+        if not line.isHeader and line.skillID == id then
+            return line
+        end
+    end
+    -- Not listed: hidden under a collapsed header, or not learned.
+    local seen = legacySeen[id]
+    if seen then
+        if collapsed[seen.skillLineCategoryID] then
+            return seen
+        end
+        return nil
+    end
+    if next(collapsed) then
+        return {skillID = id, unknown = true}
+    end
+    return nil
+end
+function legacySource.CanToggle()
+    return type(ExpandSkillHeader) == "function" and type(CollapseSkillHeader) == "function"
+end
+function legacySource.Expand(index) ExpandSkillHeader(index) end
+function legacySource.Collapse(index) CollapseSkillHeader(index) end
+
+-- Chooses the skill source by the APIs the client has, never by its version.
+function WSK.CheckCapabilities()
+    local modern, missing = HasAll(C_SkillInfo, REQUIRED_APIS)
+    if modern then
+        source = modernSource
+        return true
+    end
+    if HasAll(_G, LEGACY_APIS) then
+        source = legacySource
+        return true
+    end
+    source = nil
+    if type(C_SkillInfo) ~= "table" then
+        return false, "The skill API is unavailable on this client."
+    end
+    return false, "Required skill API is missing: " .. missing
+end
+
+-- "modern" (C_SkillInfo) or "legacy" (the classic skill-line globals).
+function WSK.SkillSource()
+    if source == modernSource then
+        return "modern"
+    elseif source == legacySource then
+        return "legacy"
+    end
 end
 
 -- Secret values (the client's Midnight restrictions, seen in client on a
 -- skill's modifier): never compare, do arithmetic on, concatenate, or print one.
 function WSK.IsSecret(value)
     return type(issecretvalue) == "function" and issecretvalue(value) == true
+end
+
+-- A tracked skill's ID: a whole positive number (C_SkillInfo's skillID) or,
+-- with the legacy API, the skill's name.
+function WSK.IsSkillID(value)
+    if type(value) == "number" then
+        return value > 0 and value == math.floor(value)
+    end
+    return type(value) == "string" and value:find("%S") ~= nil
 end
 
 -- For chat: a secret value is never printed.
@@ -55,7 +210,7 @@ local lastDefenseModifier
 
 -- The number of skill lines, or 0 while the count is secret.
 function WSK.CountSkillLines()
-    local count = C_SkillInfo.GetNumSkillLines()
+    local count = source and source.Count()
     if WSK.IsSecret(count) or type(count) ~= "number" then
         return 0
     end
@@ -78,8 +233,21 @@ local function ReadLine(info, requestedID)
             line[field] = value
         end
     end
-    local id = type(line.skillID) == "number" and line.skillID or requestedID
+    -- A skill ID is a number (C_SkillInfo) or the skill's name (legacy API).
+    local id = WSK.IsSkillID(line.skillID) and line.skillID or requestedID
     local known = id and lastKnown[id]
+    -- The legacy source's stand-in for a skill hidden under a collapsed header.
+    if info.unknown == true then
+        if known then
+            for _, field in ipairs(LINE_FIELDS) do
+                if line[field] == nil then
+                    line[field] = known[field]
+                end
+            end
+        else
+            line.unknown = true
+        end
+    end
     for _, field in ipairs(secret) do
         if known and known[field] ~= nil then
             line[field] = known[field]
@@ -98,7 +266,16 @@ local function ReadLine(info, requestedID)
 end
 
 function WSK.ReadSkillLine(index)
-    return ReadLine(C_SkillInfo.GetSkillLineInfo(index))
+    return ReadLine(source and source.Line(index))
+end
+
+-- The line as the source gives it, secret values and all: for /wsk debug_skills.
+function WSK.RawSkillLine(index)
+    return source and source.Line(index)
+end
+
+local function ReadSkillByID(id)
+    return ReadLine(source and source.ByID(id), id)
 end
 
 -- Ranked skills only: single-rank lines (armor proficiencies, some languages)
@@ -108,7 +285,7 @@ local function IsTrackable(line)
     return type(line) == "table" and not line.unknown and not line.isHeader
         and (line.parentSkillLineID or 0) == 0
         and not HIDDEN_CATEGORIES[line.skillLineCategoryID]
-        and type(line.skillID) == "number" and type(line.name) == "string"
+        and WSK.IsSkillID(line.skillID) and type(line.name) == "string"
         and type(line.rank) == "number" and type(line.maxRank) == "number"
         and line.maxRank > 1
 end
@@ -132,7 +309,7 @@ end
 
 -- Returns {id, name, rank, modifier, maxRank} for a learned, ranked skill, or nil.
 function WSK.GetSkill(id)
-    local line = ReadLine(C_SkillInfo.GetSkillLineInfoByID(id), id)
+    local line = ReadSkillByID(id)
     if not IsTrackable(line) then
         return nil
     end
@@ -142,7 +319,7 @@ end
 -- True only when the client says the character lacks the skill: a line with
 -- secret values and no last known ones is kept.
 function WSK.IsUnlearned(id)
-    local line = ReadLine(C_SkillInfo.GetSkillLineInfoByID(id), id)
+    local line = ReadSkillByID(id)
     return line == nil or (not line.unknown and not IsTrackable(line))
 end
 
@@ -182,7 +359,7 @@ function WSK.OrderSkills(ids)
     local position, headerPosition, header = {}, {}, nil
     for index = 1, WSK.CountSkillLines() do
         local info = WSK.ReadSkillLine(index)
-        if type(info) ~= "table" or type(info.skillID) ~= "number" then
+        if type(info) ~= "table" or not WSK.IsSkillID(info.skillID) then
             -- Nothing to place: no line, or its ID is secret and not yet known.
         elseif info.isHeader then
             headerPosition[info.skillID] = index
@@ -258,16 +435,15 @@ end
 -- Skills tab; WSK does it only when the user clicks a header's +/- in the
 -- setup panel.
 function WSK.CanToggleHeaders()
-    return type(C_SkillInfo.ExpandSkillHeader) == "function"
-        and type(C_SkillInfo.CollapseSkillHeader) == "function"
+    return source ~= nil and source.CanToggle()
 end
 
 function WSK.ExpandHeader(index)
-    C_SkillInfo.ExpandSkillHeader(index)
+    source.Expand(index)
 end
 
 function WSK.CollapseHeader(index)
-    C_SkillInfo.CollapseSkillHeader(index)
+    source.Collapse(index)
 end
 
 -- "capped" at the cap, "near" within NEAR_CAP_RANKS of it, otherwise "low".

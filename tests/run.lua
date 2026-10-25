@@ -185,6 +185,52 @@ local function fixture(options)
         if state.secretDefense then return secretValue(), secretValue() end
         return state.defense[1], state.defense[2]
     end
+    -- Classic Era and Anniversary (options.legacy): no C_SkillInfo functions
+    -- and no UnitDefenseSkill; the skill-line globals return values, with no
+    -- skill ID, category, or parent, and no child lines (a Forever quirk).
+    if options.legacy then
+        env.C_SkillInfo = options.legacy == "empty" and {} or nil
+        env.UnitDefenseSkill = nil
+        env.DEFENSE = options.defenseName or "Defense"
+        local function legacyLines()
+            local lines = {}
+            for _, info in ipairs(visibleLines()) do
+                if (info.parentSkillLineID or 0) == 0 then lines[#lines + 1] = info end
+            end
+            return lines
+        end
+        env.GetNumSkillLines = function()
+            if state.secretCount then return secretValue() end
+            return #legacyLines()
+        end
+        env.GetSkillLineInfo = function(index)
+            local info = reveal(legacyLines()[index])
+            if not info then return "", nil, nil, 0, 0, 0, 0 end
+            local expanded = info.isCollapsed
+            if not isSecret(expanded) then expanded = not expanded end
+            return info.name, info.isHeader, expanded, info.rank, info.tempPoints, info.modifier,
+                info.maxRank, false, 0, 0, 0, 0, ""
+        end
+        env.ExpandSkillHeader = function(index)
+            local info = legacyLines()[index]
+            equal(info and info.isHeader, true, "expand targets a header")
+            state.expanded[#state.expanded + 1] = "+" .. info.name
+            info.isCollapsed = false
+            state.emit("SKILL_LINES_CHANGED")
+        end
+        env.CollapseSkillHeader = function(index)
+            local info = legacyLines()[index]
+            equal(info and info.isHeader, true, "collapse targets a header")
+            state.expanded[#state.expanded + 1] = "-" .. info.name
+            info.isCollapsed = true
+            state.emit("SKILL_LINES_CHANGED")
+        end
+    end
+    -- Atlases: Forever has the Skills tab's; Classic clients do not (options.noAtlas).
+    env.C_Texture = {GetAtlasInfo = function(name)
+        if options.noAtlas or options.legacy then return nil end
+        return {width = 16, height = 16, file = name}
+    end}
 
     local function widget(kind, name, parent, template)
         local object = {kind = kind, name = name, parent = parent, template = template,
@@ -245,6 +291,7 @@ local function fixture(options)
         function object:SetBackdropBorderColor(...) self.borderColor = {...} end
         function object:SetColorTexture(...) self.color = {...} end
         function object:SetAtlas(atlas, useSize) self.atlas, self.atlasSize = atlas, useSize end
+        function object:SetTexture(path) self.texture = path end
         function object:SetBlendMode(mode) self.blend = mode end
         function object:SetAlpha(alpha) self.alpha = alpha end
         function object:Enable() self.enabled = true end
@@ -568,10 +615,10 @@ end)
 -- Saved settings -------------------------------------------------------------
 
 test("saved settings are repaired on load", function()
-    local state = fixture({db = {tracked = {43, 43, "44", 1.5, -2, 44, 173, 95, 333, 54, 356, 185},
+    local state = fixture({db = {tracked = {43, 43, "", "  ", true, {}, 1.5, -2, 44, 173, 95, 333, 54, 356, 185},
         shown = "yes", locked = 1, position = {point = "TOP"}}})
     same(state.wsk.db.tracked, {43, 44, 173, 95, 333, 54, 356, 185},
-        "deduplicated, whole positive IDs, at most 6 of each type")
+        "deduplicated, whole positive IDs or names, at most 6 of each type")
     equal(state.wsk.db.shown, true)
     equal(state.wsk.db.locked, false)
     equal(state.wsk.db.position, nil)
@@ -1168,6 +1215,159 @@ test("the Settings Defaults button resets opacities only", function()
     same(state.wsk.GetTracked(), {43}, "tracked skills kept")
     equal(state.wsk.db.locked, true)
     equal(state.wsk.db.position.point, "TOP")
+end)
+
+-- Classic Era and Anniversary: the legacy skill-line API ---------------------------
+
+local function skillByName(state, name)
+    for _, info in ipairs(state.skills) do
+        if info.name == name and (info.parentSkillLineID or 0) == 0 and not info.isHeader then return info end
+    end
+end
+
+test("without C_SkillInfo, WSK reads the classic skill-line globals", function()
+    for _, mode in ipairs({true, "empty"}) do
+        local state = fixture({legacy = mode})
+        equal(state.wsk.available, true, tostring(mode))
+        equal(state.wsk.SkillSource(), "legacy")
+    end
+    equal(fixture().wsk.SkillSource(), "modern", "Forever keeps C_SkillInfo")
+end)
+test("with neither skill API, WSK disables itself", function()
+    local state = fixture({login = false})
+    state.env.C_SkillInfo = nil
+    state.emit("ADDON_LOADED", "WeaponSkillsForever")
+    state.emit("PLAYER_LOGIN")
+    equal(state.wsk.available, false)
+    contains(state.messages[2], "The skill API is unavailable on this client.")
+end)
+test("classic skills are known by name, grouped by header, with no child lines", function()
+    local state = fixture({legacy = true})
+    local names = {}
+    for index, skill in ipairs(state.wsk.ListTrackableSkills()) do
+        names[index] = tostring(skill.id) .. "@" .. tostring(skill.group) .. "@" .. state.wsk.SkillType(skill)
+    end
+    same(names, {"Swords@Weapon Skills@weapons", "Axes@Weapon Skills@weapons", "Daggers@Weapon Skills@weapons",
+        "Defense@Weapon Skills@weapons", "Maces@Weapon Skills@weapons", "Staves@Weapon Skills@weapons",
+        "Unarmed@Weapon Skills@weapons", "Enchanting@Professions@other", "Fishing@Secondary Skills@other",
+        "Cooking@Secondary Skills@other"})
+end)
+test("classic bars show rank, cap, bonus, and the cap colors", function()
+    local state = fixture({legacy = true, db = {tracked = {"Swords", "Daggers", "Axes"}}})
+    skillByName(state, "Swords").modifier = 5
+    state.emit("SKILL_LINES_CHANGED")
+    local rows = rowsFor(state)
+    equal(#rows, 3)
+    contains(rows[1].text, "297 ")
+    contains(rows[1].text, "(+5)")
+    same(rows[1].color, YELLOW)
+    same(rows[2].color, RED, "Axes 120 / 300")
+    same(rows[3].color, GREEN, "Daggers at its cap")
+    skillByName(state, "Swords").rank = 298
+    state.emit("SKILL_LINES_CHANGED")
+    contains(rowsFor(state)[1].text, "298 ")
+end)
+test("classic Defense takes its bonus from the skill line, as Classic's Skills frame does", function()
+    local state = fixture({legacy = true, db = {tracked = {"Defense"}}})
+    skillByName(state, "Defense").modifier = 7
+    state.emit("SKILL_LINES_CHANGED")
+    contains(rowsFor(state)[1].text, "(+7)")
+end)
+test("classic tracking keeps 6 weapon and 6 other skills, by name", function()
+    local state = fixture({legacy = true})
+    for _, name in ipairs({"Swords", "Axes", "Daggers", "Defense", "Maces", "Staves"}) do
+        equal(state.wsk.SetTracked(name, true), true, name)
+    end
+    local ok, message = state.wsk.SetTracked("Unarmed", true)
+    equal(ok, false)
+    contains(message, "up to 6 weapon")
+    equal(state.wsk.SetTracked("Enchanting", true), true, "other skills have their own six")
+    equal(state.wsk.SetTracked("Lockpicking", true), false, "Class Skills stay hidden")
+    local saved = fixture({legacy = true, db = {tracked = state.wsk.db.tracked}})
+    same(saved.wsk.GetTracked(), {"Swords", "Axes", "Daggers", "Defense", "Maces", "Staves", "Enchanting"},
+        "names survive the saved-settings repair")
+end)
+test("a classic skill under a collapsed header keeps its last values and stays tracked", function()
+    local state = fixture({legacy = true, db = {tracked = {"Swords"}}})
+    equal(#trackedRows(state), 1)
+    state.skills[3].isCollapsed = true
+    state.emit("SKILL_LINES_CHANGED")
+    same(state.wsk.GetTracked(), {"Swords"}, "not pruned")
+    contains(rowsFor(state)[1].text, "297 ")
+end)
+test("a classic skill never seen while its group is collapsed is kept, and the box says so", function()
+    local state = fixture({legacy = true, login = false, db = {tracked = {"Swords"}}})
+    state.skills[3].isCollapsed = true
+    state.emit("ADDON_LOADED", "WeaponSkillsForever")
+    state.emit("PLAYER_LOGIN")
+    state.emit("SKILL_LINES_CHANGED")
+    state.tracker = state.env.WeaponSkillsForeverTracker
+    same(state.wsk.GetTracked(), {"Swords"})
+    contains(state.tracker.empty.text, "hides skill values")
+end)
+test("a classic skill the character no longer has is pruned", function()
+    local state = fixture({legacy = true, db = {tracked = {"Swords", "Fishing"}}})
+    for index, info in ipairs(state.skills) do
+        if info.name == "Fishing" then table.remove(state.skills, index) break end
+    end
+    equal(skillByName(state, "Fishing"), nil, "fixture: Fishing removed")
+    state.emit("SKILL_LINES_CHANGED")
+    same(state.wsk.GetTracked(), {"Swords"})
+end)
+test("in other languages, the group with the Defense line is the weapon group", function()
+    local state = fixture({legacy = true, defenseName = "Verteidigung"})
+    state.skills[3].name = "Waffenfertigkeiten"
+    skillByName(state, "Defense").name = "Verteidigung"
+    skillByName(state, "Swords").name = "Schwerter"
+    local types = {}
+    for _, skill in ipairs(state.wsk.ListTrackableSkills()) do types[skill.name] = state.wsk.SkillType(skill) end
+    equal(types.Schwerter, "weapons")
+    equal(types.Verteidigung, "weapons")
+    equal(types.Fishing, "other")
+end)
+test("classic group headers expand and collapse through the classic globals", function()
+    local state = fixture({legacy = true})
+    state.wsk.ToggleConfig()
+    equal(state.wsk.CanToggleHeaders(), true)
+    local weapons
+    for _, header in ipairs(headerButtons(state)) do
+        if header.name.text == "Weapon Skills" then weapons = header end
+    end
+    state.fire(weapons, "OnClick")
+    same(state.expanded, {"-Weapon Skills"})
+end)
+test("without the Skills tab atlases, headers use the classic +/- textures", function()
+    local state = fixture({legacy = true})
+    state.skills[3].isCollapsed = true
+    state.emit("SKILL_LINES_CHANGED")
+    state.wsk.ToggleConfig()
+    local found = 0
+    for _, header in ipairs(headerButtons(state)) do
+        equal(header.stateIcon.atlas, nil, header.name.text)
+        local wanted = header.collapsed and "Interface\\Buttons\\UI-PlusButton-Up"
+            or "Interface\\Buttons\\UI-MinusButton-Up"
+        equal(header.stateIcon.texture, wanted, header.name.text)
+        found = found + 1
+    end
+    equal(found > 1, true)
+    for _, child in ipairs(headerButtons(state)[1].children) do
+        if child.layer == "BACKGROUND" then same(child.color, {1, 1, 1, 0.08}) end
+    end
+end)
+test("classic secret values keep the last known bonus", function()
+    local state = fixture({legacy = true, db = {tracked = {"Swords"}}})
+    contains(rowsFor(state)[1].text, "(+5)")
+    state.secret = {modifier = true}
+    state.emit("SKILL_LINES_CHANGED")
+    contains(rowsFor(state)[1].text, "(+5)")
+end)
+test("classic /wsk debug_skills prints each line by name", function()
+    local state = fixture({legacy = true})
+    state.wsk.HandleCommand("debug_skills")
+    contains(state.messages[1], "debug_skills lines=19 headers=6 collapsed=0 children=0 trackable=10")
+    local text = table.concat(state.messages, "\n")
+    contains(text, "debug_skills id=Swords name=Swords category=6")
+    contains(text, "debug_skills header id=6 name=Weapon Skills collapsed=false")
 end)
 
 -- Slash commands -----------------------------------------------------------------

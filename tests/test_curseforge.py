@@ -43,7 +43,7 @@ class CurseForgeTests(unittest.TestCase):
         source.mkdir()
         version = "0.1.0-beta"
         (source / "WeaponSkillsForever.toc").write_bytes(
-            (f"## Interface: 16001\n## Version: {version}\n"
+            (f"## Interface: 16001, 11509\n## Version: {version}\n"
              + "\n".join(builder.RUNTIME_FILES) + "\n").encode("utf-8"))
         (source / "LICENSE").write_bytes(builder.MIT_NOTICE.encode("utf-8"))
         for name in builder.RUNTIME_FILES:
@@ -59,7 +59,8 @@ class CurseForgeTests(unittest.TestCase):
         self.archive = self.dist / self.manifest["archive_name"]
         self.manifest_path = self.dist / "release-manifest.json"
         self.receipt_path = self.dist / publisher.RECEIPT_NAME
-        self.versions = [{"id": 12345, "name": "1.60.1", "gameVersionTypeID": 88568}]
+        self.versions = [{"id": 12345, "name": "1.60.1", "gameVersionTypeID": 88568},
+                         {"id": 16630, "name": "1.15.9", "gameVersionTypeID": 67408}]
         self.opener = mock.Mock()
         patch = mock.patch.object(publisher, "make_opener", return_value=self.opener)
         self.opener_factory = patch.start()
@@ -81,7 +82,7 @@ class CurseForgeTests(unittest.TestCase):
 
     def publish(self, **kwargs):
         arguments = {"artifact_dir": self.dist, "project_id": "123",
-                     "game_version_id": "12345", "tag": self.tag}
+                     "game_version_id": "12345", "classic_game_version_id": "16630", "tag": self.tag}
         arguments.update(kwargs)
         return publisher.publish(**arguments)
 
@@ -102,7 +103,8 @@ class CurseForgeTests(unittest.TestCase):
         self.assertEqual(metadata, {"releases": [{
             "name": "WeaponSkillsForever", "version": "0.1.0-beta",
             "filename": "WeaponSkillsForever-0.1.0-beta-forever.zip", "nolib": False,
-            "metadata": [{"flavor": "forever", "interface": 16001}],
+            "metadata": [{"flavor": "forever", "interface": 16001},
+                         {"flavor": "classic", "interface": 11509}],
         }]})
 
     def test_wowup_metadata_must_match_before_upload(self):
@@ -153,7 +155,7 @@ class CurseForgeTests(unittest.TestCase):
         self.assertEqual([part.get_param("name", header="content-disposition") for part in parts],
                          ["metadata", "file"])
         metadata = json.loads(parts[0].get_payload(decode=True))
-        self.assertEqual(metadata, {"gameVersions": [12345], "releaseType": "beta",
+        self.assertEqual(metadata, {"gameVersions": [12345, 16630], "releaseType": "beta",
                                    "changelog": notes, "changelogType": "markdown",
                                    "relations": {"projects": [{"slug": "dyres-toolkit",
                                                                "type": "requiredDependency"}]}})
@@ -198,7 +200,7 @@ class CurseForgeTests(unittest.TestCase):
 
     def test_ids_are_explicit_positive_decimal(self):
         for value in ("", "0", "-1", "1.0", "+123", " 123", "123\n", "１２３", "01", True, 123):
-            for key in ("project_id", "game_version_id"):
+            for key in ("project_id", "game_version_id", "classic_game_version_id"):
                 with self.subTest(key=key, value=value), self.assertRaises(publisher.PublishError):
                     self.publish(**{key: value})
         self.assert_no_network()
@@ -343,6 +345,21 @@ class CurseForgeTests(unittest.TestCase):
                 self.assertEqual(self.opener.open.call_count, 1)
                 self.assertFalse(self.receipt_path.exists())
 
+    def test_classic_era_version_must_be_1_15_9_of_its_type(self):
+        forever = self.versions[0]
+        invalid = [[forever],
+                   [forever, {"id": 16630, "name": "1.15.8", "gameVersionTypeID": 67408}],
+                   [forever, {"id": 16630, "name": "1.15.9", "gameVersionTypeID": 88568}],
+                   [forever, {"id": 999, "name": "1.15.9", "gameVersionTypeID": 67408}]]
+        for versions in invalid:
+            with self.subTest(versions=versions):
+                self.opener.open.reset_mock()
+                self.responses(versions, {"id": 98765})
+                with self.assertRaises(publisher.PublishError):
+                    self.publish()
+                self.assertEqual(self.opener.open.call_count, 1)
+                self.assertFalse(self.receipt_path.exists())
+
     def test_exact_version_id_selected_not_first_matching_name(self):
         versions = [{"id": 444, "name": "1.60.1", "gameVersionTypeID": 1}] + self.versions
         self.responses(versions, {"id": 98765})
@@ -436,7 +453,7 @@ class CurseForgeTests(unittest.TestCase):
 
     def test_cli_success_and_duplicate_failure(self):
         arguments = ["--artifact-dir", str(self.dist), "--project-id", "123",
-                     "--game-version-id", "12345", "--tag", self.tag]
+                     "--game-version-id", "12345", "--classic-game-version-id", "16630", "--tag", self.tag]
         stdout, stderr = io.StringIO(), io.StringIO()
         with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
             self.assertEqual(publisher.main(arguments), 0)
@@ -467,7 +484,7 @@ class CurseForgeTests(unittest.TestCase):
         self.opener.open.side_effect = [self.response(self.versions),
                                        urllib.error.URLError(DUMMY_TOKEN)]
         arguments = ["--artifact-dir", str(self.dist), "--project-id", "123",
-                     "--game-version-id", "12345", "--tag", self.tag]
+                     "--game-version-id", "12345", "--classic-game-version-id", "16630", "--tag", self.tag]
         stdout, stderr = io.StringIO(), io.StringIO()
         with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
             self.assertEqual(publisher.main(arguments), 1)
@@ -481,7 +498,7 @@ class CurseForgeTests(unittest.TestCase):
         with contextlib.redirect_stderr(io.StringIO()):
             with self.assertRaises(SystemExit) as caught:
                 publisher.main(["--artifact-dir", str(self.dist), "--project-id", "123",
-                                "--game-version-id", "12345", "--tag", self.tag, "--token", "dummy"])
+                                "--game-version-id", "12345", "--classic-game-version-id", "16630", "--tag", self.tag, "--token", "dummy"])
         self.assertNotEqual(caught.exception.code, 0)
         self.assert_no_network()
 

@@ -32,6 +32,12 @@ local COMING_LATER = "Coming in a later version."
 local HEADER_ATLAS = "common-button-list-collapseExpand"
 local PLUS_ATLAS = "common-button-list-plus"
 local MINUS_ATLAS = "common-button-list-minus"
+-- Clients without those atlases (Classic Era and Anniversary) get the
+-- textures of their own Skills frame, and a faint plain header background.
+local PLUS_TEXTURE = "Interface\\Buttons\\UI-PlusButton-Up"
+local MINUS_TEXTURE = "Interface\\Buttons\\UI-MinusButton-Up"
+local STATE_ICON_SIZE = 16
+local HEADER_FALLBACK_COLOR = {1, 1, 1, 0.08}
 -- Header icon buttons: a little larger than the title text.
 local ICON_SIZE = 20
 local ICON_GAP = 10
@@ -73,6 +79,29 @@ local settings
 local settingsCategory
 local rows = {}
 local selectors = {}
+
+local function HasAtlas(name)
+    return type(C_Texture) == "table" and type(C_Texture.GetAtlasInfo) == "function"
+        and C_Texture.GetAtlasInfo(name) ~= nil
+end
+
+local function SetHeaderBackground(texture)
+    if HasAtlas(HEADER_ATLAS) then
+        texture:SetAtlas(HEADER_ATLAS)
+    else
+        texture:SetColorTexture(unpack(HEADER_FALLBACK_COLOR))
+    end
+end
+
+local function SetStateIcon(texture, collapsed)
+    local atlas = collapsed and PLUS_ATLAS or MINUS_ATLAS
+    if HasAtlas(atlas) then
+        texture:SetAtlas(atlas, true)
+    else
+        texture:SetTexture(collapsed and PLUS_TEXTURE or MINUS_TEXTURE)
+        texture:SetSize(STATE_ICON_SIZE, STATE_ICON_SIZE)
+    end
+end
 
 local function StyleBox(frame, alpha)
     frame:SetBackdrop(BACKDROP)
@@ -315,7 +344,7 @@ local function RenderSelector(selector)
             if WSK.CanToggleHeaders() then
                 row.header.index = entry.index
                 row.header.collapsed = entry.collapsed
-                row.header.stateIcon:SetAtlas(entry.collapsed and PLUS_ATLAS or MINUS_ATLAS, true)
+                SetStateIcon(row.header.stateIcon, entry.collapsed)
                 row.header.stateIcon:Show()
                 row.header:Enable()
             else
@@ -374,10 +403,10 @@ local function CreateSelectorRow(selector, index)
     header:SetSize(selector.width, LIST_ROW_HEIGHT - 2)
     header:SetPoint("TOPLEFT", left, offset)
     local background = header:CreateTexture(nil, "BACKGROUND")
-    background:SetAtlas(HEADER_ATLAS)
+    SetHeaderBackground(background)
     background:SetAllPoints()
     local highlight = header:CreateTexture(nil, "HIGHLIGHT")
-    highlight:SetAtlas(HEADER_ATLAS)
+    SetHeaderBackground(highlight)
     highlight:SetAllPoints()
     highlight:SetBlendMode("ADD")
     highlight:SetAlpha(0.3)

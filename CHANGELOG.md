@@ -4,6 +4,16 @@ Player-facing changes for each Weapon Skills Forever release, newest first. The
 release builder copies the section for the TOC version into the GitHub release
 notes and the CurseForge changelog, and fails if that section is missing.
 
+## 1.2.0
+
+### Features
+
+- WSK now also reads skills on clients without Forever's skill API, such as WoW Classic Era and Anniversary: the same bars (rank, cap, bonus, and cap colors), the weapon and other skill views, and up to six of each. There, a skill is known by its name, and the weapon group by its English header name or by its Defense line in any language. This build is for testing on those clients; the CurseForge release is still for WoW: Forever.
+
+### Other changes
+
+- Without the Skills tab's +/- art, the group headers in the setup panel use the classic +/- buttons.
+
 ## 1.1.0
 
 ### Features

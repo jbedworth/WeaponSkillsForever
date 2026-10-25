@@ -125,7 +125,24 @@ alerts, account-wide profiles, or other features without agreement.
   was tested on 70450). Treat target-client documentation and FrameXML as
   authoritative; Retail and Classic examples are references only.
 - Do not gate the runtime on client version, build, or Interface. Gate only on
-  the required `C_SkillInfo` functions.
+  the skill APIs: Skills' `CheckCapabilities` picks the source, `C_SkillInfo`
+  (`GetNumSkillLines`, `GetSkillLineInfo`, `GetSkillLineInfoByID`) when all
+  are there, else the classic globals `GetNumSkillLines` and
+  `GetSkillLineInfo` (Classic Era 1.15.9 and Anniversary 2.5.6 have no
+  `C_SkillInfo` functions; their SkillFrame.lua uses these). All reads go
+  through the source; nothing else calls either API.
+- The legacy source (author-approved, 1.2.0) turns each line's returns
+  (name, header, isExpanded, rank, tempPoints, modifier, maxRank) into
+  C_SkillInfo's form. It has no IDs: a skill's ID is its name (saved
+  `tracked` holds numbers or names), and a header's ID is its category: the
+  Forever number for the English header names (`LEGACY_CATEGORIES`), 6 for
+  the group holding the `DEFENSE` line in any language, else the header's
+  name. Defense takes its bonus from its line there, as Classic's SkillFrame
+  does. A skill hidden under a collapsed header returns its last line seen
+  this session, or an unknown stand-in (kept, never pruned). Header +/- use
+  `UI-PlusButton-Up`/`UI-MinusButton-Up` when `C_Texture.GetAtlasInfo` has
+  no Skills tab atlas. `SKILL_LINES_CHANGED` is the only skill event, as on
+  Classic's SkillFrame.
 - Track skills by `skillID` (`GetSkillLineInfoByID`), never by list index, which
   shifts when headers collapse. In client, a header collapsed on the Skills tab
   hides its skills from `GetSkillLineInfo` indexes, while lookup by ID still

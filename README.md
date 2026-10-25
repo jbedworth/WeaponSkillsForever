@@ -16,8 +16,16 @@ you play, and colors each bar by how close it is to the cap.
 
 For World of Warcraft: Forever `1.60.1` (tested on build `70450`, Interface
 `16001`, Lua `5.1`). WSK does not check the client version or build, because
-client builds change often. It checks at login for the skill API it needs
-(`C_SkillInfo`) and disables itself with one message if it is missing.
+client builds change often. It checks at login for a skill API it can use
+and disables itself with one message if there is none: `C_SkillInfo` on
+Forever, or the classic skill-line functions (`GetNumSkillLines`,
+`GetSkillLineInfo`) on clients such as WoW Classic Era and Anniversary.
+
+On those classic clients (for testing; the release targets Forever), a skill
+is known by its name, and the weapon group by its English header name or by
+its Defense line in any language. In other languages, Class Skills and
+Languages are not hidden. A tracked skill under a collapsed group shows the
+last values seen this session, or a note until the group is opened once.
 
 ## Using it
 

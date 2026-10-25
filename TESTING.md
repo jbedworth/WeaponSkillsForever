@@ -20,8 +20,13 @@ the automated test method, and the in-client checklist.
 
 ## Runtime contract
 
-- `Skills.lua` requires `C_SkillInfo.GetNumSkillLines`, `GetSkillLineInfo`, and
-  `GetSkillLineInfoByID`. It does not check the client version or build.
+- `Skills.lua` uses `C_SkillInfo.GetNumSkillLines`, `GetSkillLineInfo`, and
+  `GetSkillLineInfoByID` when the client has all three, else the classic
+  globals `GetNumSkillLines` and `GetSkillLineInfo` (Classic Era and
+  Anniversary; see AGENTS). It does not check the client version or build.
+  The mock suite runs both sources (`legacy` fixture option: no
+  `C_SkillInfo`, returns instead of tables, no IDs or child lines, no
+  `UnitDefenseSkill`, no atlases).
 - Trackable skills are learned, non-header, top-level lines
   (`parentSkillLineID == 0`) with `maxRank > 1`, outside category 7 (Class
   Skills) and category 10 (Languages, which stay at their cap once known; the
@@ -209,6 +214,21 @@ BugGrabber report from the client did.
       checkbox; "Reset position" sits right under "Show the skill box", and
       the gear panel has no empty row above its pager.
 - [ ] `/wsk reset` still moves the box to its default position.
+
+### Classic Era and Anniversary (tick "Load out of date AddOns")
+
+- [ ] Login prints the WSK banner and the ready hint, and no "skill API" line.
+- [ ] The setup panel lists the skills by group, with no Class Skills or
+      Languages (English client) and no single-rank lines; the group +/-
+      buttons show and open or close the group on the Skills tab too.
+- [ ] Track a weapon skill, Defense, and a profession. The bars show rank,
+      cap, and the bonus in green, with red, yellow, and green as on Forever;
+      weapons and other skills sit in their own views.
+- [ ] A skill-up (hit a mob with a low weapon skill) updates the bar.
+- [ ] Collapse the Weapon Skills group on the Skills tab: tracked weapon bars
+      stay, with their last values; `/reload` with it collapsed shows the
+      "hides skill values" note until the group is opened.
+- [ ] `/wsk debug_skills` prints each line with `id=<name>`.
 
 ### Without Dyre's Toolkit
 

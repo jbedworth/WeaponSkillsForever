@@ -46,6 +46,7 @@ local REQUIRED_NAMESPACE = {
     "ParseCommand", "HandleCommand", "CheckCapabilities", "GetSkill",
     "ListTrackableSkills", "ListSetupEntries", "ExpandHeader", "CollapseHeader", "SkillStatus",
     "SkillType", "OrderSkills", "IsSecret", "Describe", "CountSkillLines", "ReadSkillLine", "IsUnlearned",
+    "IsSkillID", "SkillSource", "RawSkillLine",
     "InitializeUI", "RefreshUI", "OpenSettings", "ApplyLocked", "SetLocked",
 }
 
@@ -61,8 +62,14 @@ end
 
 -- Per-character settings in WeaponSkillsForeverDB, repaired on load so a
 -- damaged or older table can never break the UI.
-local function IsWholeNumber(value)
-    return type(value) == "number" and value == math.floor(value)
+-- A tracked skill: a whole positive skillID (C_SkillInfo) or a skill name (the
+-- legacy skill-line API). Local, because saved settings load before the
+-- install check, and Skills.lua may be missing from a mixed install.
+local function IsSkillID(value)
+    if type(value) == "number" then
+        return value > 0 and value == math.floor(value)
+    end
+    return type(value) == "string" and value:find("%S") ~= nil
 end
 
 local function SanitizePosition(position)
@@ -84,7 +91,7 @@ function WSK.SanitizeDB(db)
     local tracked, seen = {}, {}
     if type(db.tracked) == "table" then
         for _, id in ipairs(db.tracked) do
-            if IsWholeNumber(id) and id > 0 and not seen[id] and #tracked < 2 * WSK.MAX_TRACKED then
+            if IsSkillID(id) and not seen[id] and #tracked < 2 * WSK.MAX_TRACKED then
                 tracked[#tracked + 1] = id
                 seen[id] = true
             end
@@ -230,7 +237,7 @@ function WSK.ReportSkillDebug()
     local details = {}
     local D = WSK.Describe
     for index = 1, lines do
-        local info = C_SkillInfo.GetSkillLineInfo(index)
+        local info = WSK.RawSkillLine(index)
         local line = WSK.ReadSkillLine(index)
         if type(line) == "table" and line.isHeader then
             headers = headers + 1
