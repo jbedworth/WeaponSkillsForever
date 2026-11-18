@@ -4,6 +4,12 @@ Player-facing changes for each Weapon Skills Forever release, newest first. The
 release builder copies the section for the TOC version into the GitHub release
 notes and the CurseForge changelog, and fails if that section is missing.
 
+## 1.3.0
+
+### Features
+
+- Your WSK settings are now part of your Dyre's Toolkit profile: the tracked skills, the box's place, shown state and view, and both opacities. On the Toolkit's settings page you can copy them from another character, reset them to the defaults, or export and import them; they apply at once, with no reload. The box's lock stays per character, because it follows the Toolkit's lock. This needs Dyre's Toolkit 2.10.0 or newer; with an older Toolkit, or none, nothing changes.
+
 ## 1.2.0
 
 ### Features

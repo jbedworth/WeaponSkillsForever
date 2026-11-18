@@ -27,6 +27,13 @@ the automated test method, and the in-client checklist.
   The mock suite runs both sources (`legacy` fixture option: no
   `C_SkillInfo`, returns instead of tables, no IDs or child lines, no
   `UnitDefenseSkill`, no atlases).
+- With Dyre's Toolkit 2.10.0 or newer, Core registers WSK's profile part
+  before the box is built: `WSK.SanitizeDB` as sanitize, `locked` as the one
+  character key, and `WSK.ApplyProfile` as refresh (place, shown state, and
+  `RefreshUI`). The profile tests run the real engine (Toolkit Core.lua and
+  Profiles.lua, from ../DyresToolkit or tests/toolkit): registration, the
+  Defaults, a copy from another character, a damaged and a bad part, export
+  and import, a part waiting from another load, and the classic source.
 - Trackable skills are learned, non-header, top-level lines
   (`parentSkillLineID == 0`) with `maxRank > 1`, outside category 7 (Class
   Skills) and category 10 (Languages, which stay at their cap once known; the
@@ -229,6 +236,21 @@ BugGrabber report from the client did.
       stay, with their last values; `/reload` with it collapsed shows the
       "hides skill values" note until the group is opened.
 - [ ] `/wsk debug_skills` prints each line with `id=<name>`.
+
+### Dyre's Toolkit profile (Toolkit 2.10.0 or newer)
+
+- [ ] On character A, track two skills, move the box, set both opacities, and
+      switch the view. Log in on character B.
+- [ ] On the Toolkit's settings page, choose character A in "Copy settings
+      from" and click Copy. With no reload, the box moves to A's place and
+      shows A's skills, view, and opacities; WSK's settings page shows the new
+      values. Chat says "Profile copied."; no reload popup.
+- [ ] The box's lock does not change (it follows the Toolkit's lock).
+- [ ] Copy from "Defaults": the box goes to its default place with no skills.
+- [ ] Export profile, change a WSK setting, Import profile with the line: the
+      exported settings come back, live.
+- [ ] In combat, Copy and Import say "Settings change out of combat." and
+      change nothing.
 
 ### Without Dyre's Toolkit
 

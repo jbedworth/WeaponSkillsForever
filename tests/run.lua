@@ -7,6 +7,16 @@ if _VERSION ~= "Lua 5.1" then
 end
 
 local tests = {}
+-- Dyre's Toolkit's own files for the profile tests: the real ones beside this
+-- repository when they are there, else the copy in tests/toolkit (CI).
+local TOOLKIT_DIR = "tests/toolkit/"
+do
+    local probe = io.open("../DyresToolkit/Profiles.lua", "rb")
+    if probe then
+        probe:close()
+        TOOLKIT_DIR = "../DyresToolkit/"
+    end
+end
 local function test(name, body)
     tests[#tests + 1] = {name = name, body = body}
 end
@@ -399,6 +409,28 @@ local function fixture(options)
             kit.opened[#kit.opened + 1] = category
             return true
         end
+        -- The profile engine (options.profiles): the real Dyre's Toolkit Core.lua
+        -- and Profiles.lua, from ../DyresToolkit when it is there, else the copy
+        -- in tests/toolkit (as in CI). Its RegisterProfilePart serves the mock.
+        if options.profiles then
+            env.UnitName = function() return state.characterName or "Dyre" end
+            env.GetRealmName = function() return "Forever" end
+            env.UnitClass = function() return "Warrior" end
+            env.time = function() return 1000 end
+            env.StaticPopupDialogs = {}
+            local tkns = {InitializeSettings = function() end, InitializeMinimap = function() end}
+            for _, file in ipairs({"Core.lua", "Profiles.lua"}) do
+                local chunk = loadfile(TOOLKIT_DIR .. file)
+                assert(chunk, "toolkit file " .. TOOLKIT_DIR .. file)
+                setfenv(chunk, env)
+                chunk("DyresToolkit", tkns)
+            end
+            state.profile = tkns.profile
+            toolkit.RegisterProfilePart = env.DyresToolkit.RegisterProfilePart
+            toolkit.ProfileParts = env.DyresToolkit.ProfileParts
+            state.realToolkit = env.DyresToolkit
+            env.DyresToolkitDB = options.toolkitDB
+        end
         env.DyresToolkit = toolkit
     end
     env.GameTooltip = widget("Tooltip")
@@ -431,6 +463,9 @@ local function fixture(options)
         state.load(path)
     end
     if options.login ~= false then
+        if options.profiles then
+            state.emit("ADDON_LOADED", "DyresToolkit")
+        end
         state.emit("ADDON_LOADED", "WeaponSkillsForever")
         state.emit("PLAYER_LOGIN")
         state.tracker = env.WeaponSkillsForeverTracker
@@ -1368,6 +1403,120 @@ test("classic /wsk debug_skills prints each line by name", function()
     local text = table.concat(state.messages, "\n")
     contains(text, "debug_skills id=Swords name=Swords category=6")
     contains(text, "debug_skills header id=6 name=Weapon Skills collapsed=false")
+end)
+
+-- Dyre's Toolkit profile (the real engine) ------------------------------------------
+
+local ME, OTHER = "Dyre - Forever", "Alt - Forever"
+local DEFAULT_DB = {tracked = {}, shown = true, locked = false, view = "weapons",
+    backgroundAlpha = 0.5, contentAlpha = 0.9}
+
+local function otherCharacter(settings)
+    return {profiles = {[OTHER] = {class = "Mage", seen = 1, parts = {WeaponSkillsForever = settings},
+        pending = {}}}}
+end
+
+test("without RegisterProfilePart, or without the toolkit, nothing changes and no error shows", function()
+    local old = fixture({toolkit = true, db = {tracked = {43}}})
+    equal(old.env.DyresToolkit.RegisterProfilePart, nil, "an older toolkit")
+    equal(old.wsk.available, true)
+    equal(#trackedRows(old), 1)
+    local none = fixture({db = {tracked = {43}}})
+    equal(none.wsk.available, true)
+    equal(#trackedRows(none), 1)
+end)
+test("WSK registers its profile part, with locked kept per character", function()
+    local state = fixture({toolkit = true, profiles = true, db = {tracked = {43}, backgroundAlpha = 0.3}})
+    same(state.realToolkit.ProfileParts(), {"WeaponSkillsForever"})
+    local part = state.env.DyresToolkitDB.profiles[ME].parts.WeaponSkillsForever
+    same(part.tracked, {43}, "the profile copy holds the settings")
+    near(part.backgroundAlpha, 0.3)
+    equal(part.locked, nil, "locked mirrors the toolkit's account-wide lock")
+end)
+test("sanitize({}) gives the defaults", function()
+    local state = fixture({toolkit = true, profiles = true})
+    same(state.wsk.SanitizeDB({}), DEFAULT_DB)
+end)
+test("Defaults resets every setting live and keeps locked", function()
+    local state = fixture({toolkit = true, profiles = true,
+        db = {tracked = {43}, shown = false, view = "other", backgroundAlpha = 0.1,
+            position = {point = "TOP", relativePoint = "TOP", x = 1, y = 2}}})
+    equal(state.wsk.db.locked, true, "the toolkit starts locked")
+    local ok, reload = state.profile:CopyFrom(state.realToolkit.PROFILE_DEFAULTS)
+    equal(ok, true)
+    same(reload, {}, "no reload")
+    same(state.wsk.db, {tracked = {}, shown = true, locked = true, view = "weapons",
+        backgroundAlpha = 0.5, contentAlpha = 0.9})
+    equal(state.tracker:IsShown(), true)
+    same(state.tracker.points[#state.tracker.points], {"RIGHT", state.env.UIParent, "RIGHT", -60, 120})
+end)
+test("a copy from another character changes the settings live and keeps locked", function()
+    local position = {point = "CENTER", relativePoint = "BOTTOMLEFT", x = 320, y = 256}
+    local state = fixture({toolkit = true, profiles = true, db = {tracked = {43}},
+        toolkitDB = otherCharacter({tracked = {333, 356}, shown = true, locked = false, view = "other",
+            backgroundAlpha = 0.2, contentAlpha = 0.6, position = position})})
+    local db = state.wsk.db
+    state.settings.OnRefresh()
+    local ok, reload = state.profile:CopyFrom(OTHER)
+    equal(ok, true)
+    same(reload, {}, "applied live, no reload")
+    equal(state.wsk.db, db, "written in place")
+    same(db.tracked, {333, 356})
+    equal(db.view, "other")
+    equal(db.locked, true, "locked is not copied")
+    near(state.tracker.backdropColor[4], 0.2)
+    same(state.tracker.points[#state.tracker.points], {"CENTER", state.env.UIParent, "BOTTOMLEFT", 320, 256})
+    local rows = rowsFor(state)
+    equal(#rows, 2, "Enchanting and Fishing in the other view")
+    near(trackedRows(state)[1].alpha, 0.6)
+    equal(state.settings.opacity[1].label.text, "Background opacity: 20%", "the open page reads them again")
+end)
+test("a copied profile can hide the box live", function()
+    local state = fixture({toolkit = true, profiles = true,
+        toolkitDB = otherCharacter({shown = false})})
+    equal(state.tracker:IsShown(), true)
+    equal(state.profile:CopyFrom(OTHER), true)
+    equal(state.tracker:IsShown(), false)
+    equal(state.wsk.db.shown, false)
+end)
+test("a damaged part from another version is repaired; a bad part changes nothing", function()
+    local state = fixture({toolkit = true, profiles = true, db = {tracked = {43}, backgroundAlpha = 0.3}})
+    equal(state.profile:Apply({WeaponSkillsForever = {tracked = {"", 44, 44, -1}, backgroundAlpha = 9,
+        view = "sideways", newerKey = true}}), true)
+    same(state.wsk.db.tracked, {44})
+    equal(state.wsk.db.backgroundAlpha, 1)
+    equal(state.wsk.db.view, "weapons")
+    local before = state.wsk.db.backgroundAlpha
+    local ok, why = state.profile:Apply({WeaponSkillsForever = "junk"})
+    equal(ok, nil)
+    contains(why, "Weapon Skills Forever cannot take those settings")
+    equal(state.wsk.db.backgroundAlpha, before, "nothing changed")
+    same(state.wsk.db.tracked, {44})
+end)
+test("export and import carry WSK's settings", function()
+    local state = fixture({toolkit = true, profiles = true, db = {tracked = {43, 333}, contentAlpha = 0.5}})
+    local line = state.profile:Export()
+    contains(line, "DYRE2:profile:")
+    state.wsk.SetTracked(43, false)
+    state.wsk.SetOpacity("contentAlpha", 1)
+    equal(state.profile:Import(line), true)
+    same(state.wsk.db.tracked, {43, 333})
+    near(state.wsk.db.contentAlpha, 0.5)
+    near(trackedRows(state)[1].alpha, 0.5)
+end)
+test("a part copied while WSK was not loaded is written before the box is built", function()
+    local toolkitDB = {profiles = {[ME] = {class = "Warrior", seen = 1, parts = {},
+        pending = {WeaponSkillsForever = {tracked = {44}, backgroundAlpha = 0.7}}}}}
+    local state = fixture({toolkit = true, profiles = true, db = {tracked = {43}}, toolkitDB = toolkitDB})
+    same(state.wsk.db.tracked, {44})
+    near(state.tracker.backdropColor[4], 0.7)
+    equal(state.env.DyresToolkitDB.profiles[ME].pending.WeaponSkillsForever, nil)
+end)
+test("profiles work on the classic skill source too", function()
+    local state = fixture({legacy = true, toolkit = true, profiles = true,
+        toolkitDB = otherCharacter({tracked = {"Swords", "Defense"}})})
+    equal(state.profile:CopyFrom(OTHER), true)
+    equal(#trackedRows(state), 2)
 end)
 
 -- Slash commands -----------------------------------------------------------------

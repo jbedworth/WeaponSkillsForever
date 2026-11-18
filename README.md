@@ -77,6 +77,12 @@ with WSK. It gives all Dyre's AddOns one layout mode and one settings home:
   locked at login.
 - The settings page sits under **Options → AddOns → Dyre's AddOns**. It opens
   only out of combat.
+- With Dyre's Toolkit 2.10.0 or newer, WSK's settings are part of your Dyre's
+  Toolkit profile: the tracked skills, the box's place, shown state and view,
+  and both opacities. On the Toolkit's settings page, copy them from another
+  character or the Defaults, or export and import them as one line of text.
+  They apply at once, with no reload. The lock stays per character, because it
+  follows the Toolkit's lock.
 
 Without the toolkit, WSK works as before, with its own lock (a checkbox on
 its settings page and in the setup panel, and `/wsk lock`) and its own

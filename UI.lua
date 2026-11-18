@@ -806,6 +806,22 @@ function WSK.UnlockTracker()
     WSK.Report("Skill box unlocked. Drag it to move it.")
 end
 
+-- After Dyre's Toolkit wrote a copied or imported profile into WSK.db (in
+-- place): the box's place, shown state, view, opacities, tracked skills, and
+-- the open panels read the settings again. No reload.
+function WSK.ApplyProfile()
+    if not tracker then
+        return
+    end
+    ApplyPosition()
+    if WSK.db.shown then
+        tracker:Show()
+    else
+        tracker:Hide()
+    end
+    WSK.RefreshUI()
+end
+
 function WSK.ResetTrackerPosition()
     WSK.db.position = nil
     ApplyPosition()

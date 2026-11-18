@@ -82,6 +82,38 @@ across AddOns and to the grid, a minimap menu, and one settings home.
   lines, and top-level page, as before, plus one login line naming CurseForge
   as the place to install the toolkit.
 
+### Dyre's Toolkit profile (built; John, 2026-11-15 and 2026-11-17)
+
+John: "start working on the global "all Dyre addons settings" syncing with
+DT's profile, so there is one place to go to persist your profile." The
+Toolkit (2.10.0, `Profiles.lua`, docs/PROFILES.md) owns one profile per
+character, its UI (on the Toolkit's page only), and the export line; WSK keeps
+its live settings in `WeaponSkillsForeverDB`. No per-AddOn Profile section, no
+switching, no account table.
+
+- Core registers once, at `PLAYER_LOGIN` after the saved settings load and
+  before `InitializeUI`, when `DyresToolkit.RegisterProfilePart` exists (an
+  older toolkit or none: no change, no error; the minimum toolkit version is
+  not raised): `addon`, `title`, `current` (`WSK.db`), `sanitize`
+  (`WSK.SanitizeDB`, which repairs an empty, partial, older, newer, or other
+  character's table and never errors), `characterKeys`, and `refresh`.
+- In the profile: `tracked` (skill IDs or, on the classic source, names; a
+  skill the character lacks is pruned at the next `SKILL_LINES_CHANGED`),
+  `shown`, `position` (the box's place), `view`, `backgroundAlpha`,
+  `contentAlpha`.
+- `characterKeys = {"locked"}`: with the toolkit, `locked` mirrors the
+  toolkit's account-wide lock (set from `IsLocked()` at login, changed by
+  `setLocked`), and account-wide settings are in no profile; copying it would
+  show a state the toolkit does not have.
+- `refresh` is `WSK.ApplyProfile`: the engine writes the part into `WSK.db`
+  in place, then this puts the box at its place, shows or hides it, and runs
+  `RefreshUI` (bars, view, opacities, the settings page's controls, open skill
+  lists). No reload. The box is not a toolkit widget (contract 1
+  `RegisterMovable`), so `ReapplyWidgets` is not used.
+- Tests load the real engine (Toolkit Core.lua and Profiles.lua) from
+  ../DyresToolkit when it is there, else the copy in tests/toolkit (CI). No
+  byte-equality test; refresh the copy when CI needs newer engine behavior.
+
 Keep this narrow feature set. Do not add automatic weapon switching, skill-up
 alerts, account-wide profiles, or other features without agreement.
 
@@ -92,7 +124,9 @@ alerts, account-wide profiles, or other features without agreement.
   API boundary, trackable-skill rules, and cap status; Core owns events, saved
   settings, tracking limits, the login banner, diagnostics, and joining Dyre's
   Toolkit; UI owns the box, setup panel, and settings page.
-- tests/run.lua holds the Lua 5.1 mock suite. tests/test_*.py cover the release
+- tests/run.lua holds the Lua 5.1 mock suite; tests/toolkit holds a copy of
+  Dyre's Toolkit's Core.lua and Profiles.lua for its profile tests (never
+  packaged). tests/test_*.py cover the release
   helpers in scripts/. .github/workflows/ holds CI, opt-in publishing, and the
   approval gate check.
 - README.md is the user-facing overview, TESTING.md the verification method and

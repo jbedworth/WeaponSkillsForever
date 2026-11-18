@@ -47,7 +47,7 @@ local REQUIRED_NAMESPACE = {
     "ListTrackableSkills", "ListSetupEntries", "ExpandHeader", "CollapseHeader", "SkillStatus",
     "SkillType", "OrderSkills", "IsSecret", "Describe", "CountSkillLines", "ReadSkillLine", "IsUnlearned",
     "IsSkillID", "SkillSource", "RawSkillLine",
-    "InitializeUI", "RefreshUI", "OpenSettings", "ApplyLocked", "SetLocked",
+    "InitializeUI", "RefreshUI", "OpenSettings", "ApplyLocked", "SetLocked", "ApplyProfile",
 }
 
 local function CheckInstalledFiles()
@@ -310,6 +310,30 @@ for index, alias in ipairs(SLASH_ALIASES) do
 end
 SlashCmdList[SLASH_KEY] = function(message) WSK.HandleCommand(message) end
 
+-- Dyre's Toolkit profile (Toolkit 2.10.0; John, 2026-11-15): the toolkit keeps
+-- a copy of these settings per character, so a player can copy them from
+-- another character, or export and import them. The live settings stay in
+-- WeaponSkillsForeverDB. Registered after the saved settings load and before
+-- the box is built: a part copied while WSK was not loaded is written then.
+-- "locked" stays per character: with the toolkit it mirrors the toolkit's
+-- account-wide lock, which no profile holds.
+local PROFILE_CHARACTER_KEYS = {"locked"}
+
+local function RegisterProfilePart()
+    local toolkit = _G.DyresToolkit
+    if type(toolkit) ~= "table" or type(toolkit.RegisterProfilePart) ~= "function" then
+        return
+    end
+    toolkit.RegisterProfilePart({
+        addon = addonName,
+        title = DEFAULT_TITLE,
+        current = function() return WSK.db end,
+        sanitize = function(settings) return WSK.SanitizeDB(settings) end,
+        characterKeys = PROFILE_CHARACTER_KEYS,
+        refresh = function() WSK.ApplyProfile() end,
+    })
+end
+
 local events = CreateFrame("Frame")
 events:RegisterEvent("ADDON_LOADED")
 events:RegisterEvent("PLAYER_LOGIN")
@@ -348,6 +372,7 @@ events:SetScript("OnEvent", function(self, event, loadedName)
         else
             WSK.Report(INSTALL_TOOLKIT)
         end
+        RegisterProfilePart()
         -- Called directly rather than from UI's own PLAYER_LOGIN handler, so
         -- startup never depends on event handler order.
         WSK.InitializeUI()
