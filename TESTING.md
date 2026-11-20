@@ -226,7 +226,8 @@ BugGrabber report from the client did.
 
 - [ ] Login prints the WSK banner and the ready hint, and no "skill API" line.
 - [ ] The setup panel lists the skills by group, with no Class Skills or
-      Languages (English client) and no single-rank lines; the group +/-
+      Languages (also on a client in another language) and no single-rank
+      lines; the group +/-
       buttons show and open or close the group on the Skills tab too.
 - [ ] Track a weapon skill, Defense, and a profession. The bars show rank,
       cap, and the bonus in green, with red, yellow, and green as on Forever;

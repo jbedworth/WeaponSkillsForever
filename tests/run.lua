@@ -202,6 +202,16 @@ local function fixture(options)
         env.C_SkillInfo = options.legacy == "empty" and {} or nil
         env.UnitDefenseSkill = nil
         env.DEFENSE = options.defenseName or "Defense"
+        -- Another language's client data (options.languages, spellTabs, globals).
+        if options.languages then
+            env.GetNumLanguages = function() return #options.languages end
+            env.GetLanguageByIndex = function(index) return options.languages[index], index end
+        end
+        if options.spellTabs then
+            env.GetNumSpellTabs = function() return #options.spellTabs end
+            env.GetSpellTabInfo = function(index) return options.spellTabs[index], "icon", 0, 0 end
+        end
+        for name, value in pairs(options.globals or {}) do env[name] = value end
         local function legacyLines()
             local lines = {}
             for _, info in ipairs(visibleLines()) do
@@ -1359,6 +1369,65 @@ test("in other languages, the group with the Defense line is the weapon group", 
     equal(types.Schwerter, "weapons")
     equal(types.Verteidigung, "weapons")
     equal(types.Fishing, "other")
+end)
+
+-- A French Classic client: every header and line in French; nothing English.
+local FRENCH = {
+    "Compétences de classe", "Combat", "Compétences d'armes", "Épées", "Haches", "Dagues", "Défense",
+    "Masses", "Bâtons", "Mains nues", "Armures", "Tissu", "Langues", "Langue : commun", "Métiers",
+    "Enchantement", "Enchantement", "Compétences secondaires", "Pêche", "Cuisine",
+}
+local function frenchSkills()
+    local skills = defaultSkills()
+    for index, name in ipairs(FRENCH) do skills[index].name = name end
+    return skills
+end
+local function frenchTypes(state)
+    local types = {}
+    for _, skill in ipairs(state.wsk.ListTrackableSkills()) do types[skill.name] = state.wsk.SkillType(skill) end
+    return types
+end
+local FRENCH_WEAPONS = {"Épées", "Haches", "Dagues", "Défense", "Masses", "Bâtons", "Mains nues"}
+
+test("a French client: Class Skills and Languages are hidden by the character's own data", function()
+    local state = fixture({legacy = true, skills = frenchSkills(), defenseName = "Défense",
+        languages = {"Commun", "Darnassien"}, spellTabs = {"Général", "Assassinat", "Combat", "Finesse"}})
+    local types = frenchTypes(state)
+    for _, name in ipairs(FRENCH_WEAPONS) do equal(types[name], "weapons", name) end
+    equal(types.Enchantement, "other")
+    equal(types["Pêche"], "other")
+    equal(types.Cuisine, "other")
+    equal(types.Combat, nil, "a class skill line, hidden")
+    equal(types["Langue : commun"], nil, "a language, hidden")
+    equal(types.Tissu, nil, "single rank")
+    local headers = {}
+    for _, entry in ipairs(state.wsk.ListSetupEntries()) do
+        if entry.kind == "header" then headers[#headers + 1] = entry.name end
+    end
+    same(headers, {"Compétences d'armes", "Métiers", "Compétences secondaires"}, "the setup panel's groups")
+end)
+test("a French client: the client's global strings name Languages and Professions", function()
+    local state = fixture({legacy = true, skills = frenchSkills(), defenseName = "Défense",
+        globals = {LANGUAGES_LABEL = "Langues", TRADE_SKILLS = "Métiers"}})
+    local types = frenchTypes(state)
+    equal(types["Langue : commun"], nil, "Langues matches LANGUAGES_LABEL")
+    equal(types.Enchantement, "other")
+    equal(types["Épées"], "weapons")
+    local category
+    for _, skill in ipairs(state.wsk.ListTrackableSkills()) do
+        if skill.name == "Enchantement" then category = skill.categoryID end
+    end
+    equal(category, 11, "Métiers matches TRADE_SKILLS")
+end)
+test("a French weapon group collapsed after it was seen keeps its skills tracked and typed", function()
+    local state = fixture({legacy = true, skills = frenchSkills(), defenseName = "Défense",
+        db = {tracked = {"Épées"}}})
+    equal(#trackedRows(state), 1)
+    state.skills[3].isCollapsed = true
+    state.emit("SKILL_LINES_CHANGED")
+    same(state.wsk.GetTracked(), {"Épées"}, "not pruned")
+    equal(#trackedRows(state), 1, "still in the weapons view")
+    contains(rowsFor(state)[1].text, "297 ")
 end)
 test("classic group headers expand and collapse through the classic globals", function()
     local state = fixture({legacy = true})

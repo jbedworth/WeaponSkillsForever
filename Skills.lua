@@ -35,6 +35,66 @@ local LEGACY_CATEGORIES = {
     ["Languages"] = 10,
     ["Professions"] = 11,
 }
+-- In any language (the client's own strings and data, never English text):
+-- the header that equals a global string (Blizzard's Settings and Classic
+-- spellbook use them); the group holding the Defense line is the weapon
+-- group; a group with a line that names a language the character speaks
+-- (GetLanguageByIndex, as Classic's chat menu) is Languages; a group with a
+-- line named as a spellbook tab (a Classic class skill line) is Class Skills.
+local GLOBAL_HEADERS = {LANGUAGES_LABEL = 10, TRADE_SKILLS = 11}
+local LANGUAGES_CATEGORY, CLASS_CATEGORY = 10, 7
+-- Each header's category, learned this session while its group was open: a
+-- collapsed group lists no lines to look at.
+local learnedCategories = {}
+
+local function Plain(value)
+    return not WSK.IsSecret(value) and type(value) == "string" and value ~= "" and value or nil
+end
+
+-- The character's languages (lower case) and spellbook tab names.
+local function ClientNames()
+    local languages, tabs = {}, {}
+    if type(GetNumLanguages) == "function" and type(GetLanguageByIndex) == "function" then
+        local count = GetNumLanguages()
+        for index = 1, (not WSK.IsSecret(count) and type(count) == "number") and count or 0 do
+            local language = Plain((GetLanguageByIndex(index)))
+            if language then
+                languages[#languages + 1] = language:lower()
+            end
+        end
+    end
+    if type(GetNumSpellTabs) == "function" and type(GetSpellTabInfo) == "function" then
+        local count = GetNumSpellTabs()
+        for index = 1, (not WSK.IsSecret(count) and type(count) == "number") and count or 0 do
+            local tab = Plain((GetSpellTabInfo(index)))
+            if tab then
+                tabs[tab] = true
+            end
+        end
+    end
+    return languages, tabs
+end
+
+local function HeaderCategory(group)
+    local name = group.name
+    if name and LEGACY_CATEGORIES[name] then
+        return LEGACY_CATEGORIES[name]
+    end
+    for global, category in pairs(GLOBAL_HEADERS) do
+        local text = Plain(_G[global])
+        if name and text and name == text then
+            return category
+        end
+    end
+    if group.hasDefense then
+        return WEAPON_CATEGORY
+    elseif group.hasLanguage then
+        return LANGUAGES_CATEGORY
+    elseif group.hasClassLine then
+        return CLASS_CATEGORY
+    end
+    return name and learnedCategories[name] or name
+end
 
 local function HasAll(namespace, names)
     if type(namespace) ~= "table" then
@@ -77,6 +137,7 @@ local function LegacyLines()
     if WSK.IsSecret(count) or type(count) ~= "number" then
         return lines, collapsed
     end
+    local languages, tabs = ClientNames()
     local group
     for index = 1, count do
         local name, header, isExpanded, rank, tempPoints, modifier, maxRank = GetSkillLineInfo(index)
@@ -93,8 +154,19 @@ local function LegacyLines()
         else
             line.skillID = plainName
             line.group = group
-            if group and plainName and type(DEFENSE) == "string" and plainName == DEFENSE then
-                group.hasDefense = true
+            if group and plainName then
+                if Plain(DEFENSE) and plainName == DEFENSE then
+                    group.hasDefense = true
+                end
+                if tabs[plainName] then
+                    group.hasClassLine = true
+                end
+                local lower = plainName:lower()
+                for _, language in ipairs(languages) do
+                    if lower:find(language, 1, true) then
+                        group.hasLanguage = true
+                    end
+                end
             end
         end
         lines[#lines + 1] = line
@@ -102,8 +174,10 @@ local function LegacyLines()
     for _, line in ipairs(lines) do
         local group = line.group
         if group then
-            local category = (group.name and LEGACY_CATEGORIES[group.name])
-                or (group.hasDefense and WEAPON_CATEGORY) or group.name
+            local category = HeaderCategory(group)
+            if group.name and type(category) == "number" then
+                learnedCategories[group.name] = category
+            end
             if line.isHeader then
                 line.skillID = category
                 if line.isCollapsed == true and category then

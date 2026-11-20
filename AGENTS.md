@@ -169,9 +169,18 @@ alerts, account-wide profiles, or other features without agreement.
   (name, header, isExpanded, rank, tempPoints, modifier, maxRank) into
   C_SkillInfo's form. It has no IDs: a skill's ID is its name (saved
   `tracked` holds numbers or names), and a header's ID is its category: the
-  Forever number for the English header names (`LEGACY_CATEGORIES`), 6 for
-  the group holding the `DEFENSE` line in any language, else the header's
-  name. Defense takes its bonus from its line there, as Classic's SkillFrame
+  Forever number for the English header names (`LEGACY_CATEGORIES`); in any
+  language (author-approved, 1.3.1: "fix all six"; no English text), a
+  header that equals the client's `LANGUAGES_LABEL` (10) or `TRADE_SKILLS`
+  (11), then 6 for the group holding the `DEFENSE` line, 10 for a group with
+  a line that contains a language the character speaks
+  (`GetNumLanguages`/`GetLanguageByIndex`, as Classic's ChatFrameMenuButton;
+  case-blind), and 7 for a group with a line named as a spellbook tab
+  (`GetNumSpellTabs`/`GetSpellTabInfo`: Classic class skill lines share the
+  talent trees' names); else the category learned for that header name this
+  session (a collapsed group lists no lines), else the header's name. Armor
+  Proficiencies and Secondary Skills need no category: armor lines have one
+  rank, and secondary skills are "other" as professions are. Defense takes its bonus from its line there, as Classic's SkillFrame
   does. A skill hidden under a collapsed header returns its last line seen
   this session, or an unknown stand-in (kept, never pruned). Header +/- use
   `UI-PlusButton-Up`/`UI-MinusButton-Up` when `C_Texture.GetAtlasInfo` has

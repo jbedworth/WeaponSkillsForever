@@ -4,6 +4,13 @@ Player-facing changes for each Weapon Skills Forever release, newest first. The
 release builder copies the section for the TOC version into the GitHub release
 notes and the CurseForge changelog, and fails if that section is missing.
 
+## 1.3.1
+
+### Fixes
+
+- On Classic Era and Anniversary clients in a language other than English, the setup panel no longer offers Class Skills and Languages. WSK now finds those groups from your own client: the languages you speak, your spellbook's tab names, and the game's own text for "Languages" and "Professions". English clients work as before.
+- On those clients, collapsing the weapon skills group no longer stops tracking its skills: they keep their last values and stay in the weapons view.
+
 ## 1.3.0
 
 ### Features

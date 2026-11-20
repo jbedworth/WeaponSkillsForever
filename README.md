@@ -22,9 +22,10 @@ Forever, or the classic skill-line functions (`GetNumSkillLines`,
 `GetSkillLineInfo`) on clients such as WoW Classic Era and Anniversary.
 
 On those classic clients (for testing; the release targets Forever), a skill
-is known by its name, and the weapon group by its English header name or by
-its Defense line in any language. In other languages, Class Skills and
-Languages are not hidden. A tracked skill under a collapsed group shows the
+is known by its name. WSK finds the groups by their English header names, or
+in any language from your own client: the weapon group by its Defense line,
+Languages by the languages you speak, Class Skills by your spellbook's tab
+names, and the game's own text for "Languages" and "Professions". A tracked skill under a collapsed group shows the
 last values seen this session, or a note until the group is opened once.
 
 ## Using it
