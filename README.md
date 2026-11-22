@@ -57,7 +57,9 @@ last values seen this session, or a note until the group is opened once.
   **Dyre's AddOns**; or `/wsk`) has the same
   controls in the game's settings: show or hide the box, lock it (without
   Dyre's Toolkit), reset its position, choose tracked skills, and set the **opacity** of the box
-  background (default 50%) and of the skill rows (default 90%). Layout
+  background (default 50%) and of the skill rows (default 90%), and the
+  **Box width** (200 to 400 pixels, default 220): long names are cut with
+  "..." at the box's edge. Layout
   (horizontal) and theme options are shown there as previews and are not yet
   available.
 

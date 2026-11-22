@@ -286,6 +286,13 @@ local function fixture(options)
         function object:SetSize(width, height) self.width, self.height = width, height end
         function object:SetWidth(width) self.width = width end
         function object:SetHeight(height) self.height = height end
+        function object:SetWordWrap(value) self.wordWrap = value end
+        -- A rough measure for wrapped text: 5 pixels a letter, 12 a line.
+        function object:GetStringHeight()
+            local width = self.width or 1000
+            if self.wordWrap == false then return 12 end
+            return math.max(1, math.ceil(#(self.text or "") * 5 / width)) * 12
+        end
         function object:SetText(text) self.text = text end
         function object:GetText() return self.text end
         function object:SetTextColor(...) self.textColor = {...} end
@@ -672,7 +679,7 @@ end)
 test("missing saved settings start empty and shown", function()
     local state = fixture()
     same(state.wsk.db, {tracked = {}, shown = true, locked = false, view = "weapons",
-        backgroundAlpha = 0.5, contentAlpha = 0.9})
+        backgroundAlpha = 0.5, contentAlpha = 0.9, boxWidth = 220})
 end)
 test("saved settings keep at most twelve IDs and a valid view", function()
     local ids = {}
@@ -1198,7 +1205,7 @@ test("layout and theme choices are shown but disabled", function()
     equal(checks["Horizontal"].checked, false)
     equal(checks["Classic gold"].checked, true)
     same(state.wsk.db, {tracked = {}, shown = true, locked = false, view = "weapons",
-        backgroundAlpha = 0.5, contentAlpha = 0.9}, "nothing saved for layout or theme")
+        backgroundAlpha = 0.5, contentAlpha = 0.9, boxWidth = 220}, "nothing saved for layout or theme")
 end)
 
 -- Opacity settings -----------------------------------------------------------
@@ -1474,11 +1481,102 @@ test("classic /wsk debug_skills prints each line by name", function()
     contains(text, "debug_skills header id=6 name=Weapon Skills collapsed=false")
 end)
 
+-- Box width -----------------------------------------------------------------------
+
+local function rowNames(state)
+    local names = {}
+    for _, child in ipairs(state.tracker.children) do
+        if child.kind == "FontString" and child.wordWrap == false and child ~= state.tracker.title then
+            names[#names + 1] = child
+        end
+    end
+    return names
+end
+
+test("the box keeps its 220 width by default, and every row fits inside it", function()
+    local state = fixture({db = {tracked = {43, 44}}})
+    equal(state.wsk.db.boxWidth, 220)
+    equal(state.tracker.width, 220)
+    for _, bar in ipairs(trackedRows(state)) do
+        equal(bar.width, 200, "bar inside the padding")
+    end
+    local names = rowNames(state)
+    equal(#names, 2)
+    for _, name in ipairs(names) do
+        equal(name.width, 200, "name cut at the box's edge")
+    end
+    equal(state.tracker.empty.width, 200)
+end)
+test("long titles and values are cut, not spilled", function()
+    local state = fixture({db = {tracked = {43}}})
+    equal(state.tracker.title.wordWrap, false)
+    same(state.tracker.title.points[#state.tracker.title.points], {"RIGHT", state.tracker.view, "LEFT", -4, 0},
+        "the title stops before the icons")
+    local bar = trackedRows(state)[1]
+    for _, child in ipairs(bar.children) do
+        if child.kind == "FontString" then
+            equal(child.wordWrap, false)
+            equal(child.width, 200)
+        end
+    end
+end)
+test("saved box widths are rounded to 10 and kept from 200 to 400", function()
+    for _, case in ipairs({{999, 400}, {123, 200}, {255, 260}, {300, 300}, {"wide", 220}, {0 / 0, 220}}) do
+        local state = fixture({db = {boxWidth = case[1]}})
+        equal(state.wsk.db.boxWidth, case[2], tostring(case[1]))
+    end
+end)
+test("the settings slider shows the width and changes the box live", function()
+    local state = fixture({db = {tracked = {43}}})
+    local slider = state.settings.width
+    equal(slider.template, "MinimalSliderTemplate")
+    equal(slider.min, 200)
+    equal(slider.max, 400)
+    equal(slider.step, 10)
+    equal(slider.obeyStep, true)
+    equal(slider.label.text, "Box width: 220")
+    state.fire(slider, "OnValueChanged", 300)
+    equal(state.wsk.db.boxWidth, 300)
+    equal(state.tracker.width, 300, "at once")
+    equal(trackedRows(state)[1].width, 280)
+    equal(rowNames(state)[1].width, 280)
+    equal(state.tracker.empty.width, 280)
+    equal(slider.label.text, "Box width: 300")
+    local calls, before = 0, state.wsk.SetBoxWidth
+    state.wsk.SetBoxWidth = function(...) calls = calls + 1 return before(...) end
+    state.settings.OnRefresh()
+    equal(calls, 0, "a refresh is not a user change")
+end)
+test("a narrow box grows to hold the wrapped empty hint", function()
+    local narrow = fixture({db = {boxWidth = 200}})
+    local wide = fixture({db = {boxWidth = 400}})
+    local hint = narrow.tracker.empty
+    equal(narrow.tracker.height, 32 + 20 + hint:GetStringHeight())
+    equal(hint:GetStringHeight() > 14, true, "the hint takes more than one line")
+    equal(narrow.tracker.height > wide.tracker.height, true)
+end)
+test("the Defaults button restores the box width too", function()
+    local state = fixture({db = {tracked = {43}, boxWidth = 350}})
+    state.settings.OnDefault()
+    equal(state.wsk.db.boxWidth, 220)
+    equal(state.tracker.width, 220)
+    same(state.wsk.GetTracked(), {43}, "tracked skills kept")
+end)
+test("the box width is part of the Dyre's Toolkit profile", function()
+    local other = {class = "Mage", seen = 1, parts = {WeaponSkillsForever = {boxWidth = 380}}, pending = {}}
+    local state = fixture({toolkit = true, profiles = true, db = {boxWidth = 260},
+        toolkitDB = {profiles = {["Alt - Forever"] = other}}})
+    equal(state.env.DyresToolkitDB.profiles["Dyre - Forever"].parts.WeaponSkillsForever.boxWidth, 260)
+    equal(state.profile:CopyFrom("Alt - Forever"), true)
+    equal(state.wsk.db.boxWidth, 380)
+    equal(state.tracker.width, 380, "applied live")
+end)
+
 -- Dyre's Toolkit profile (the real engine) ------------------------------------------
 
 local ME, OTHER = "Dyre - Forever", "Alt - Forever"
 local DEFAULT_DB = {tracked = {}, shown = true, locked = false, view = "weapons",
-    backgroundAlpha = 0.5, contentAlpha = 0.9}
+    backgroundAlpha = 0.5, contentAlpha = 0.9, boxWidth = 220}
 
 local function otherCharacter(settings)
     return {profiles = {[OTHER] = {class = "Mage", seen = 1, parts = {WeaponSkillsForever = settings},
@@ -1515,7 +1613,7 @@ test("Defaults resets every setting live and keeps locked", function()
     equal(ok, true)
     same(reload, {}, "no reload")
     same(state.wsk.db, {tracked = {}, shown = true, locked = true, view = "weapons",
-        backgroundAlpha = 0.5, contentAlpha = 0.9})
+        backgroundAlpha = 0.5, contentAlpha = 0.9, boxWidth = 220})
     equal(state.tracker:IsShown(), true)
     same(state.tracker.points[#state.tracker.points], {"RIGHT", state.env.UIParent, "RIGHT", -60, 120})
 end)

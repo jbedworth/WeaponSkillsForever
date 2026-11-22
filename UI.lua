@@ -7,7 +7,6 @@ local TITLE = "Weapon Skills Forever"
 local LOCK_LABEL = "Lock the skill box position"
 -- The gear panel's lock checkbox row, between the list and the pager.
 local LOCK_ROW_HEIGHT = 28
-local TRACKER_WIDTH = 220
 local CONFIG_WIDTH = 300
 local PAD = 10
 local HEADER_HEIGHT = 28
@@ -20,6 +19,10 @@ local LIST_ROWS = 12
 local SETTINGS_ROWS = 10
 local SETTINGS_LIST_WIDTH = 280
 local OPACITY_SLIDER_WIDTH = 200
+-- The empty hint's least height (one line), and the gap between the title
+-- and the view icon, where a long title is cut.
+local EMPTY_MIN_HEIGHT = 14
+local TITLE_GAP = 4
 -- Settings page list border: the rounded tooltip edge at size 8 draws a line
 -- about 2 pixels wide at UI scale 1.
 local LIST_BORDER_PAD = 8
@@ -142,14 +145,22 @@ local function SavePosition()
     WSK.db.position = {point = point, relativePoint = relativePoint, x = x, y = y}
 end
 
+-- The width inside the box's padding, from the saved box width.
+local function InnerWidth()
+    return WSK.db.boxWidth - 2 * PAD
+end
+
 local function CreateRow(index)
     local row = {}
     row.name = tracker:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     row.name:SetPoint("TOPLEFT", PAD, -(TRACKER_HEADER_HEIGHT + (index - 1) * ROW_HEIGHT))
     row.name:SetJustifyH("LEFT")
+    -- One line, cut with "..." at the box's edge rather than spilling out.
+    row.name:SetWordWrap(false)
+    row.name:SetWidth(InnerWidth())
     row.bar = CreateFrame("StatusBar", nil, tracker)
     row.bar:SetPoint("TOPLEFT", row.name, "BOTTOMLEFT", 0, -3)
-    row.bar:SetSize(TRACKER_WIDTH - 2 * PAD, BAR_HEIGHT)
+    row.bar:SetSize(InnerWidth(), BAR_HEIGHT)
     -- A plain color texture as the fill, tinted by status: no texture file needed.
     local fill = row.bar:CreateTexture(nil, "ARTWORK")
     fill:SetColorTexture(1, 1, 1, 1)
@@ -159,6 +170,8 @@ local function CreateRow(index)
     background:SetColorTexture(unpack(BAR_BACKGROUND))
     row.text = row.bar:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     row.text:SetPoint("CENTER")
+    row.text:SetWordWrap(false)
+    row.text:SetWidth(InnerWidth())
     -- The bar's alpha also covers its fill, background, and text.
     row.name:SetAlpha(WSK.db.contentAlpha)
     row.bar:SetAlpha(WSK.db.contentAlpha)
@@ -194,9 +207,23 @@ local function ApplyOpacity()
     tracker.empty:SetAlpha(WSK.db.contentAlpha)
 end
 
+-- The saved box width, live: the box, each row's name, bar, and value, and
+-- the empty hint.
+local function ApplyWidth()
+    local inner = InnerWidth()
+    tracker:SetWidth(WSK.db.boxWidth)
+    for _, row in ipairs(rows) do
+        row.name:SetWidth(inner)
+        row.bar:SetWidth(inner)
+        row.text:SetWidth(inner)
+    end
+    tracker.empty:SetWidth(inner)
+end
+
 -- The box shows one type at a time, in Skills tab order.
 local function RefreshTracker()
     ApplyOpacity()
+    ApplyWidth()
     local view = WSK.GetView()
     local shown = 0
     local tracked = WSK.GetTracked()
@@ -232,7 +259,9 @@ local function RefreshTracker()
         end
         tracker.empty:SetText(hidden and HIDDEN_TEXT or EMPTY_TEXT[view])
         tracker.empty:Show()
-        tracker:SetHeight(TRACKER_HEADER_HEIGHT + 2 * PAD + 14)
+        -- The hint wraps in a narrow box; the box grows to hold every line.
+        local hintHeight = tracker.empty:GetStringHeight() or 0
+        tracker:SetHeight(TRACKER_HEADER_HEIGHT + 2 * PAD + math.max(EMPTY_MIN_HEIGHT, hintHeight))
     else
         tracker.empty:Hide()
         tracker:SetHeight(TRACKER_HEADER_HEIGHT + shown * ROW_HEIGHT + PAD)
@@ -241,7 +270,7 @@ end
 
 local function CreateTracker()
     tracker = CreateFrame("Frame", TRACKER_NAME, UIParent, "BackdropTemplate")
-    tracker:SetSize(TRACKER_WIDTH, TRACKER_HEADER_HEIGHT + PAD)
+    tracker:SetSize(WSK.db.boxWidth, TRACKER_HEADER_HEIGHT + PAD)
     tracker:SetFrameStrata("MEDIUM")
     tracker:SetClampedToScreen(true)
     tracker:SetMovable(true)
@@ -269,7 +298,8 @@ local function CreateTracker()
         SavePosition()
     end)
     StyleBox(tracker, WSK.db.backgroundAlpha)
-    Title(tracker)
+    tracker.title = Title(tracker)
+    tracker.title:SetWordWrap(false)
 
     tracker.gear = CreateFrame("Button", nil, tracker)
     tracker.gear:SetSize(ICON_SIZE, ICON_SIZE)
@@ -288,6 +318,9 @@ local function CreateTracker()
     tracker.view:SetSize(ICON_SIZE, ICON_SIZE)
     tracker.view:SetPoint("RIGHT", tracker.gear, "LEFT", -ICON_GAP, 0)
     tracker.view:SetHighlightTexture(HIGHLIGHT, "ADD")
+    -- The title stops before the icons, cut with "..." if the box is narrow.
+    tracker.title:SetPoint("RIGHT", tracker.view, "LEFT", -TITLE_GAP, 0)
+    tracker.title:SetJustifyH("LEFT")
     tracker.view:SetScript("OnClick", function(self)
         WSK.ToggleView()
         local onEnter = self:GetScript("OnEnter")
@@ -309,7 +342,7 @@ local function CreateTracker()
 
     tracker.empty = tracker:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     tracker.empty:SetPoint("TOPLEFT", PAD, -TRACKER_HEADER_HEIGHT)
-    tracker.empty:SetWidth(TRACKER_WIDTH - 2 * PAD)
+    tracker.empty:SetWidth(InnerWidth())
     tracker.empty:SetJustifyH("LEFT")
     tracker.empty:SetAlpha(WSK.db.contentAlpha)
 
@@ -565,6 +598,10 @@ end
 
 -- Sets each slider and label from saved values. The updating flag stops the
 -- programmatic SetValue from being treated as a user change.
+local function WidthLabel()
+    return string.format("Box width: %d", WSK.db.boxWidth)
+end
+
 local function UpdateOpacitySliders()
     for _, slider in ipairs(settings.opacity) do
         slider.updating = true
@@ -572,6 +609,33 @@ local function UpdateOpacitySliders()
         slider.updating = false
         slider.label:SetText(OpacityLabel(slider))
     end
+    local width = settings.width
+    if width then
+        width.updating = true
+        width:SetValue(WSK.db.boxWidth)
+        width.updating = false
+        width.label:SetText(WidthLabel())
+    end
+end
+
+-- The box width slider, in pixels, as the opacity sliders.
+local function WidthSlider(parent, x, y)
+    local limits = WSK.BOX_WIDTH
+    local label = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    label:SetPoint("TOPLEFT", x, y)
+    local slider = CreateFrame("Slider", nil, parent, "MinimalSliderTemplate")
+    slider:SetPoint("TOPLEFT", x, y - 20)
+    slider:SetWidth(OPACITY_SLIDER_WIDTH)
+    slider:SetMinMaxValues(limits.min, limits.max)
+    slider:SetValueStep(limits.step)
+    slider:SetObeyStepOnDrag(true)
+    slider.label = label
+    slider:SetScript("OnValueChanged", function(self, value)
+        if not self.updating then
+            WSK.SetBoxWidth(value)
+        end
+    end)
+    return slider
 end
 
 -- A labelled MinimalSliderTemplate slider (Blizzard's settings slider) for one
@@ -677,6 +741,8 @@ local function CreateSettings()
         OpacitySlider(settings, column, -306, "backgroundAlpha", "Background"),
         OpacitySlider(settings, column, -360, "contentAlpha", "Skill rows"),
     }
+    SettingsHeading(settings, column, -424, "Size")
+    settings.width = WidthSlider(settings, column, -450)
     UpdateOpacitySliders()
 
     -- Called by the Settings panel each time this category is shown.

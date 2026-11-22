@@ -189,6 +189,11 @@ BugGrabber report from the client did.
 - [ ] The opacity sliders change the box background and skill rows at once,
       show the value, survive `/reload`, and reset with the panel's Defaults
       button without touching tracked skills.
+- [ ] The "Box width" slider shows its number and changes the box at once,
+      from 200 to 400. At 200, a long skill name (for example "Two-Handed
+      Swords") and the title end in "..." inside the box; with nothing
+      tracked, the hint wraps and stays inside the box. The width survives
+      `/reload`, and Defaults sets it back to 220.
 - [ ] Options > AddOns lists Weapon Skills Forever; `/wsk` opens it. Its
       show and lock checkboxes, reset button, and skill selector work and stay in
       step with the box and gear panel; Layout and Theme show disabled.

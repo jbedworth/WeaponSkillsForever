@@ -17,7 +17,18 @@ normally visible only on the Skills tab of the Character window.
   background, default 0.5, range 0-1) and `contentAlpha` (skill names, bars,
   and the empty hint, default 0.9, range 0.2-1 so rows never vanish). The title
   and header icons stay at full opacity. Saved values are rounded and clamped
-  on load. The Settings panel's Defaults button resets opacities only.
+  on load. The Settings panel's Defaults button resets the opacities and
+  the box width only.
+- Box width (John, 2026-11-21: "allow setting the max-width of the box
+  on-screen"): `boxWidth`, a "Box width" `MinimalSliderTemplate` slider under
+  a "Size" heading, 200 to 400 pixels in steps of 10, default 220 (the width
+  before 1.4.0); rounded and clamped on load (`WSK.ClampWidth`). The box
+  keeps a fixed width (it does not shrink to its content), so the setting is
+  the box's width. Applied live by `RefreshTracker` (no polling): the box,
+  each row's name, bar, and value, and the empty hint. Names and values are
+  one line, cut with "..." (`SetWordWrap(false)` and a width); the title
+  stops before the view icon; the empty hint wraps, and the box grows to its
+  `GetStringHeight`. 200 keeps the title and both icons on one line.
 - Bar color, author-approved: red when the rank is more than 5 below the cap,
   yellow within 5 but not capped, green at the cap. Compare the base rank with
   `maxRank`; bonuses (`modifier`) are shown in green text but never count,
@@ -100,7 +111,7 @@ switching, no account table.
 - In the profile: `tracked` (skill IDs or, on the classic source, names; a
   skill the character lacks is pruned at the next `SKILL_LINES_CHANGED`),
   `shown`, `position` (the box's place), `view`, `backgroundAlpha`,
-  `contentAlpha`.
+  `contentAlpha`, `boxWidth`.
 - `characterKeys = {"locked"}`: with the toolkit, `locked` mirrors the
   toolkit's account-wide lock (set from `IsLocked()` at login, changed by
   `setLocked`), and account-wide settings are in no profile; copying it would

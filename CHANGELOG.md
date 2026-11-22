@@ -4,6 +4,12 @@ Player-facing changes for each Weapon Skills Forever release, newest first. The
 release builder copies the section for the TOC version into the GitHub release
 notes and the CurseForge changelog, and fails if that section is missing.
 
+## 1.4.0
+
+### Features
+
+- Set the skill box's width on the settings page: a **Box width** slider from 200 to 400 pixels, in steps of 10. The default stays 220, so the box looks as before. The box changes at once. Long skill names, values, and the title are cut with "..." at the box's edge, and the empty hint wraps; nothing goes outside the box. The width is part of your Dyre's Toolkit profile, and the settings page's Defaults button restores it.
+
 ## 1.3.1
 
 ### Fixes

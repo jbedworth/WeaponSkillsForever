@@ -39,7 +39,7 @@ Per-file changelogs need no manual text: each CI upload uses the version's
 - Bar colors: **red** more than 5 below the cap, **yellow** within 5, **green** at the cap.
 - Track up to six weapon skills and six other skills, such as professions; a sword or book icon on the box switches between them.
 - Choose skills from the gear button or `/wsk config`. Skills are grouped as on the Skills tab; **+** and **−** open and close a group, on the Skills tab too.
-- Drag the box anywhere after `/dyre unlock` (or `/wsk unlock`). Set **Background opacity** (default 50%) and **Skill rows opacity** (default 90%) on the settings page. The position and your choices are saved per character.
+- Drag the box anywhere after `/dyre unlock` (or `/wsk unlock`). Set **Background opacity** (default 50%), **Skill rows opacity** (default 90%), and **Box width** (200 to 400 pixels, default 220) on the settings page. The position and your choices are saved per character.
 - Bonuses such as racial weapon bonuses are shown in green but do not count toward the cap, matching the Skills tab.
 
 ### Dyre's Toolkit

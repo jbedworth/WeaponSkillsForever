@@ -105,7 +105,28 @@ function WSK.SanitizeDB(db)
     for key in pairs(WSK.OPACITY) do
         db[key] = WSK.ClampOpacity(key, db[key])
     end
+    db.boxWidth = WSK.ClampWidth(db.boxWidth)
     return db
+end
+
+-- The skill box's width in pixels (John, 2026-11-21: "allow setting the
+-- max-width of the box"). The default is the width before 1.4.0. The minimum
+-- keeps the title and its two icons on one line; names and values truncate,
+-- and the empty hint wraps, inside the box.
+WSK.BOX_WIDTH = {default = 220, min = 200, max = 400, step = 10}
+
+function WSK.ClampWidth(value)
+    local limits = WSK.BOX_WIDTH
+    if type(value) ~= "number" or value ~= value then
+        return limits.default
+    end
+    value = math.floor(value / limits.step + 0.5) * limits.step
+    return math.max(limits.min, math.min(limits.max, value))
+end
+
+function WSK.SetBoxWidth(value)
+    WSK.db.boxWidth = WSK.ClampWidth(value)
+    WSK.RefreshUI()
 end
 
 -- Opacity settings: saved key -> default, minimum, and maximum, from 0 to 1.
@@ -131,11 +152,13 @@ function WSK.SetOpacity(key, value)
     WSK.RefreshUI()
 end
 
--- Restores the default opacities only; tracked skills and position are kept.
+-- The Settings panel's Defaults button: the default opacities and box width
+-- only; tracked skills and position are kept.
 function WSK.ResetOpacity()
     for key, limits in pairs(WSK.OPACITY) do
         WSK.db[key] = limits.default
     end
+    WSK.db.boxWidth = WSK.BOX_WIDTH.default
     WSK.RefreshUI()
 end
 
