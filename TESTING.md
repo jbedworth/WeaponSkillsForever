@@ -194,6 +194,9 @@ BugGrabber report from the client did.
       Swords") and the title end in "..." inside the box; with nothing
       tracked, the hint wraps and stays inside the box. The width survives
       `/reload`, and Defaults sets it back to 220.
+- [ ] Each slider shows a gold mark at its default (Background 50%, Skill
+      rows 90%, Box width 220): the thumb's center covers the mark at the
+      default.
 - [ ] Options > AddOns lists Weapon Skills Forever; `/wsk` opens it. Its
       show and lock checkboxes, reset button, and skill selector work and stay in
       step with the box and gear panel; Layout and Theme show disabled.

@@ -284,7 +284,27 @@ local function fixture(options)
             return point[1], point[2], point[3], point[4], point[5]
         end
         function object:SetSize(width, height) self.width, self.height = width, height end
-        function object:SetWidth(width) self.width = width end
+        function object:SetWidth(width)
+            self.width = width
+            if self.scripts.OnSizeChanged then self.scripts.OnSizeChanged(self, width, self.height) end
+        end
+        function object:GetWidth() return self.width or 0 end
+        function object:HookScript(script, callback)
+            local before = self.scripts[script]
+            self.scripts[script] = function(...)
+                if before then before(...) end
+                callback(...)
+            end
+        end
+        -- MinimalSliderTemplate's thumb (an atlas at its own size).
+        function object:GetThumbTexture()
+            if self.kind ~= "Slider" then return nil end
+            if not self.thumb then
+                self.thumb = widget("Texture", nil, self)
+                self.thumb.width = 20
+            end
+            return self.thumb
+        end
         function object:SetHeight(height) self.height = height end
         function object:SetWordWrap(value) self.wordWrap = value end
         -- A rough measure for wrapped text: 5 pixels a letter, 12 a line.
@@ -1546,6 +1566,42 @@ test("the settings slider shows the width and changes the box live", function()
     state.wsk.SetBoxWidth = function(...) calls = calls + 1 return before(...) end
     state.settings.OnRefresh()
     equal(calls, 0, "a refresh is not a user change")
+end)
+-- The gold mark sits where the thumb's center is at the default value.
+local function tickX(slider, min, max, default)
+    local half = 10
+    return half + (default - min) / (max - min) * (slider.width - 2 * half)
+end
+local function checkTick(slider, min, max, default, context)
+    local tick = slider.defaultTick
+    equal(tick ~= nil, true, context .. " has a mark")
+    equal(tick.layer, "BORDER", context)
+    equal(tick.width, 2, context)
+    equal(tick.height, 12, context)
+    same(tick.color, {1, 0.82, 0}, context .. " gold")
+    local point, relative, relativePoint, x, y = tick:GetPoint()
+    equal(point, "CENTER", context)
+    equal(relative, slider, context)
+    equal(relativePoint, "LEFT", context)
+    near(x, tickX(slider, min, max, default), context)
+    equal(y, 0, context)
+    equal(#tick.points, 1, context .. " placed once, not stacked")
+end
+test("each settings slider has a gold mark at its default", function()
+    local state = fixture({db = {tracked = {43}, boxWidth = 350, backgroundAlpha = 0.2}})
+    checkTick(state.settings.width, 200, 400, 220, "Box width")
+    near(state.settings.width.defaultTick.points[1][4], 10 + 0.1 * 180, "Box width at 220")
+    checkTick(state.settings.opacity[1], 0, 1, 0.5, "Background")
+    near(state.settings.opacity[1].defaultTick.points[1][4], 100, "Background at 50%")
+    checkTick(state.settings.opacity[2], 0.2, 1, 0.9, "Skill rows")
+    near(state.settings.opacity[2].defaultTick.points[1][4], 10 + 0.875 * 180, "Skill rows at 90%")
+end)
+test("a slider's mark moves with the slider's width", function()
+    local state = fixture({})
+    local slider = state.settings.width
+    slider:SetWidth(300)
+    checkTick(slider, 200, 400, 220, "Box width after a resize")
+    near(slider.defaultTick.points[1][4], 10 + 0.1 * 280)
 end)
 test("a narrow box grows to hold the wrapped empty hint", function()
     local narrow = fixture({db = {boxWidth = 200}})

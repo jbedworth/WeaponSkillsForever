@@ -4,6 +4,12 @@ Player-facing changes for each Weapon Skills Forever release, newest first. The
 release builder copies the section for the TOC version into the GitHub release
 notes and the CurseForge changelog, and fails if that section is missing.
 
+## 1.4.1
+
+### Features
+
+- Each slider on the settings page (Background opacity, Skill rows opacity, and Box width) has a small gold mark at its default value, as on Dyre's Toolkit's sliders, so you can see where the default is.
+
 ## 1.4.0
 
 ### Features

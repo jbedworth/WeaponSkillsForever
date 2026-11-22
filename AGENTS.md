@@ -29,6 +29,13 @@ normally visible only on the Skills tab of the Character window.
   one line, cut with "..." (`SetWordWrap(false)` and a width); the title
   stops before the view icon; the empty hint wraps, and the box grows to its
   `GetStringHeight`. 200 keeps the title and both icons on one line.
+- Default marks (John, 2026-11-21: "set notches on the sliders default
+  values"): each slider has a gold mark (2 by 12, BORDER layer) at its
+  default, placed as Dyre's Toolkit's (Widgets.lua `PlaceTick`): half the
+  thumb width plus the default's fraction of the width less the thumb, from
+  the slider's LEFT; placed again on `OnSizeChanged`. Drawn by WSK, because
+  the Toolkit's `AddDefaultTick` hooks a Settings initializer, and these are
+  plain `MinimalSliderTemplate` frames.
 - Bar color, author-approved: red when the rank is more than 5 below the cap,
   yellow within 5 but not capped, green at the cap. Compare the base rank with
   `maxRank`; bonuses (`modifier`) are shown in green text but never count,

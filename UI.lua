@@ -618,6 +618,30 @@ local function UpdateOpacitySliders()
     end
 end
 
+-- A gold mark at the slider's default, as Dyre's Toolkit draws on its own
+-- sliders (Widgets.lua PlaceTick): the thumb's center sits there at the
+-- default. Placed again when the slider's size changes; no polling.
+local TICK_WIDTH, TICK_HEIGHT = 2, 12
+
+local function PlaceTick(slider)
+    local tick = slider.defaultTick
+    local thumb = slider:GetThumbTexture()
+    local half = thumb and thumb:GetWidth() / 2 or 0
+    local fraction = (tick.default - tick.min) / (tick.max - tick.min)
+    tick:ClearAllPoints()
+    tick:SetPoint("CENTER", slider, "LEFT", half + fraction * (slider:GetWidth() - 2 * half), 0)
+end
+
+local function AddDefaultTick(slider, min, max, default)
+    local tick = slider:CreateTexture(nil, "BORDER")
+    tick:SetSize(TICK_WIDTH, TICK_HEIGHT)
+    tick:SetColorTexture(GOLD[1], GOLD[2], GOLD[3])
+    tick.min, tick.max, tick.default = min, max, default
+    slider.defaultTick = tick
+    slider:HookScript("OnSizeChanged", PlaceTick)
+    PlaceTick(slider)
+end
+
 -- The box width slider, in pixels, as the opacity sliders.
 local function WidthSlider(parent, x, y)
     local limits = WSK.BOX_WIDTH
@@ -635,6 +659,7 @@ local function WidthSlider(parent, x, y)
             WSK.SetBoxWidth(value)
         end
     end)
+    AddDefaultTick(slider, limits.min, limits.max, limits.default)
     return slider
 end
 
@@ -656,6 +681,7 @@ local function OpacitySlider(parent, x, y, key, labelText)
             WSK.SetOpacity(key, value)
         end
     end)
+    AddDefaultTick(slider, limits.min, limits.max, limits.default)
     return slider
 end
 
