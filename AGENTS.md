@@ -119,6 +119,13 @@ switching, no account table.
   skill the character lacks is pruned at the next `SKILL_LINES_CHANGED`),
   `shown`, `position` (the box's place), `view`, `backgroundAlpha`,
   `contentAlpha`, `boxWidth`.
+- Welcome messages (John, 2026-11-23: "toggle off our welcome messages unless
+  there is an error/problem", "A: one Toolkit switch"): Dyre's Toolkit
+  2.14.0's "Welcome messages at login" (`DyresToolkit.ShowWelcome()`). When
+  it returns false, the banner and the ready hint are skipped; every problem
+  (mixed install, no skill API, no toolkit, slash conflict) still prints.
+  Feature test only: an older toolkit, or none, prints as before. No WSK
+  switch, and the minimum toolkit stays.
 - `characterKeys = {"locked"}`: with the toolkit, `locked` mirrors the
   toolkit's account-wide lock (set from `IsLocked()` at login, changed by
   `setLocked`), and account-wide settings are in no profile; copying it would

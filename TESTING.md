@@ -213,6 +213,9 @@ BugGrabber report from the client did.
 
 - [ ] Login prints the banner and ready hint, and no install line. The AddOn
       list shows Weapon Skills Forever under Dyre's Toolkit.
+- [ ] With Dyre's Toolkit 2.14.0, turn off "Welcome messages at login" and
+      `/reload`: WSK prints nothing. Turn it on and `/reload`: the banner and
+      ready hint are back.
 - [ ] Options > AddOns > Dyre's AddOns lists Weapon Skills Forever, with no
       second top-level entry; `/wsk options` opens it, and in combat says
       that the settings open out of combat.

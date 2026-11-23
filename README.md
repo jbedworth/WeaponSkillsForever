@@ -86,6 +86,8 @@ with WSK. It gives all Dyre's AddOns one layout mode and one settings home:
   character or the Defaults, or export and import them as one line of text.
   They apply at once, with no reload. The lock stays per character, because it
   follows the Toolkit's lock.
+- With Dyre's Toolkit 2.14.0 or newer, turn off **Welcome messages at login**
+  on the Dyre's AddOns page to hide WSK's login banner. Problems still show.
 
 Without the toolkit, WSK works as before, with its own lock (a checkbox on
 its settings page and in the setup panel, and `/wsk lock`) and its own

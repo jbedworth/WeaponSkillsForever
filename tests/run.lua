@@ -669,6 +669,45 @@ test("login banner shows TOC title, version, and author, then a ready hint", fun
         "WSK: Install Dyre's Toolkit from CurseForge for one layout mode and settings home for all Dyre's AddOns.",
     })
 end)
+-- Dyre's Toolkit 2.14.0's "Welcome messages at login" switch.
+local function welcomeLogin(options, showWelcome)
+    local state = fixture(options)
+    if showWelcome ~= nil then
+        state.env.DyresToolkit.ShowWelcome = function() return showWelcome end
+    end
+    state.emit("ADDON_LOADED", "WeaponSkillsForever")
+    state.emit("PLAYER_LOGIN")
+    return state
+end
+local BANNER_PREFIX = "WSK: Weapon Skills Forever "
+test("the banner shows with no toolkit, an older toolkit, or welcome messages on", function()
+    local none = welcomeLogin({login = false})
+    contains(none.messages[1], BANNER_PREFIX)
+    local older = welcomeLogin({login = false, toolkit = true})
+    equal(older.env.DyresToolkit.ShowWelcome, nil, "a toolkit without ShowWelcome")
+    contains(older.messages[1], BANNER_PREFIX)
+    contains(older.messages[2], "Ready.")
+    local on = welcomeLogin({login = false, toolkit = true}, true)
+    contains(on.messages[1], BANNER_PREFIX)
+    contains(on.messages[2], "Ready.")
+end)
+test("welcome messages off hide the banner and the ready hint only", function()
+    local off = welcomeLogin({login = false, toolkit = true}, false)
+    equal(#off.messages, 0, "nothing on a healthy login")
+    equal(off.wsk.available, true, "WSK still starts")
+end)
+test("welcome messages off still show problems", function()
+    local mixed = welcomeLogin({login = false, toolkit = true, files = {"Commands.lua", "Core.lua", "UI.lua"}}, false)
+    equal(#mixed.messages, 1)
+    contains(mixed.messages[1], "different versions (missing CheckCapabilities)")
+    local old = fixture({login = false})
+    old.env.DyresToolkit = {ShowWelcome = function() return false end}
+    old.emit("ADDON_LOADED", "WeaponSkillsForever")
+    old.emit("PLAYER_LOGIN")
+    same(old.messages, {
+        "WSK: Install Dyre's Toolkit from CurseForge for one layout mode and settings home for all Dyre's AddOns.",
+    }, "a toolkit with no usable contract")
+end)
 test("login reports a mixed install", function()
     local state = fixture({login = false, files = {"Commands.lua", "Core.lua", "UI.lua"}})
     state.emit("ADDON_LOADED", "WeaponSkillsForever")
